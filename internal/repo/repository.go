@@ -6,6 +6,8 @@ type Repos struct {
 	Shop         *ShopRepo
 	Conversation *ConversationRepo
 	Message      *MessageRepo
+	AutoReply    *AutoReplyRepo
+	Outbound     *OutboundRepo
 }
 
 func New(db *gorm.DB) *Repos {
@@ -13,6 +15,8 @@ func New(db *gorm.DB) *Repos {
 		Shop:         NewShopRepo(db),
 		Conversation: NewConversationRepo(db),
 		Message:      NewMessageRepo(db),
+		AutoReply:    NewAutoReplyRepo(db),
+		Outbound:     NewOutboundRepo(db),
 	}
 }
 

@@ -279,11 +279,13 @@ func (s *ShopService) Heartbeat(shop *model.CsShop) (*dto.PluginHeartbeatResult,
 	if err := s.repos.Shop.TouchHeartbeat(shop); err != nil {
 		return nil, err
 	}
+	pending, _ := s.ForTenant(shop.TenantID).outbound().CountPending(shop.ID)
 	return &dto.PluginHeartbeatResult{
-		MonitorEnabled: shop.MonitorEnabled,
-		ShopName:       shop.Name,
-		Platform:       shop.Platform,
-		PlatformShopID: shop.PlatformShopID,
+		MonitorEnabled:  shop.MonitorEnabled,
+		ShopName:        shop.Name,
+		Platform:        shop.Platform,
+		PlatformShopID:  shop.PlatformShopID,
+		PendingOutbound: pending,
 	}, nil
 }
 
@@ -372,6 +374,9 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 					conv.PlatformConversationID = cid
 				}
 				_ = svc.conversations().Save(conv)
+			}
+			if dir == model.DirectionIn {
+				svc.maybeAutoReply(shop, conv, msg)
 			}
 		} else {
 			skipped++

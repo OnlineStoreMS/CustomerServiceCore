@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChatDotRound, Shop } from '@element-plus/icons-vue'
+import { ChatDotRound, ChatLineSquare, Shop } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -9,6 +9,7 @@ const collapsed = defineModel<boolean>('collapsed', { default: false })
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/conversations')) return '/conversations'
+  if (route.path.startsWith('/auto-reply')) return '/auto-reply'
   if (route.path.startsWith('/shops')) return '/shops'
   return route.path
 })
@@ -16,6 +17,7 @@ const activeMenu = computed(() => {
 const menuItems = [
   { path: '/shops', title: '店铺', icon: Shop },
   { path: '/conversations', title: '会话', icon: ChatDotRound },
+  { path: '/auto-reply', title: '自动回复', icon: ChatLineSquare },
 ]
 
 const logoText = computed(() => (collapsed.value ? '客服' : '客服中心'))

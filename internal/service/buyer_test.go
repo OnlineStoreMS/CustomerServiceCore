@@ -23,6 +23,22 @@ func TestNormalizeBuyerName_stripsVisitChrome(t *testing.T) {
 	}
 }
 
+func TestMatchAutoReply_exactAndContains(t *testing.T) {
+	kws := splitKeywords("好的,谢谢,谢谢老板,收到,ok")
+	if !matchAutoReply("好的", model.MatchExact, kws) {
+		t.Fatal("exact 好的")
+	}
+	if !matchAutoReply("谢谢！", model.MatchExact, kws) {
+		t.Fatal("exact 谢谢 with punct")
+	}
+	if matchAutoReply("这个飞轮支持12速吗", model.MatchExact, kws) {
+		t.Fatal("should not match question")
+	}
+	if !matchAutoReply("好的谢谢老板", model.MatchContains, kws) {
+		t.Fatal("contains 谢谢")
+	}
+}
+
 func TestConversationMergeKey_sameBuyer(t *testing.T) {
 	rows := []*model.CsConversation{
 		{ShopID: 1, Platform: "doudian", PlatformShopID: "177987746", BuyerName: "杭州觅景单车 重复来访 6秒", PlatformBuyerID: "name:杭州觅景单车 重复来访 6秒"},

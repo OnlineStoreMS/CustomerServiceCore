@@ -30,6 +30,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	shopSvc := service.NewShopService(repos, codec)
 	shopH := admin.NewShopHandler(shopSvc)
 	convH := admin.NewConversationHandler(shopSvc)
+	autoH := admin.NewAutoReplyHandler(shopSvc)
 	pluginH := plugin.NewHandler(shopSvc)
 
 	r.GET("/health", func(c *gin.Context) {
@@ -40,7 +41,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	adminGroup := v1.Group("/admin")
 	jwtMgr := jwtmgr.NewManager(cfg.Auth.JWTSecret)
 	adminGroup.Use(adminmw.AdminAuth(&cfg.Auth, jwtMgr))
-	admin.RegisterRoutes(adminGroup, shopH, convH)
+	admin.RegisterRoutes(adminGroup, shopH, convH, autoH)
 
 	pluginGroup := v1.Group("/plugin")
 	pluginGroup.POST("/bind", pluginH.Bind)
@@ -48,6 +49,8 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.Use(pluginH.AuthRequired())
 	authed.POST("/heartbeat", pluginH.Heartbeat)
 	authed.POST("/messages", pluginH.Messages)
+	authed.POST("/outbound/claim", pluginH.ClaimOutbound)
+	authed.POST("/outbound/:id/ack", pluginH.AckOutbound)
 
 	return r
 }

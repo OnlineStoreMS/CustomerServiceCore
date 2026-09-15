@@ -24,6 +24,7 @@ const router = createRouter({
       children: [
         { path: 'shops', name: 'Shops', component: () => import('../views/Shops.vue'), meta: { title: '店铺' } },
         { path: 'conversations', name: 'Conversations', component: () => import('../views/Conversations.vue'), meta: { title: '会话' } },
+        { path: 'auto-reply', name: 'AutoReply', component: () => import('../views/AutoReply.vue'), meta: { title: '自动回复' } },
       ],
     },
   ],

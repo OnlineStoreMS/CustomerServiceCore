@@ -1,6 +1,6 @@
 # CustomerServiceCore
 
-OSMS 客服中心（phase 1：抖店客服消息监控）。
+OSMS 客服中心（抖店客服消息监控、云端回复、自动回复）。
 
 ## Ports
 
@@ -25,15 +25,18 @@ cd web && npm install && npm run dev
 - `POST /api/v1/plugin/bind` — body `{ "bindCode": "..." }`
 - `POST /api/v1/plugin/heartbeat` — headers `X-Plugin-Key` / `X-Plugin-Secret`
 - `POST /api/v1/plugin/messages` — batch upsert messages (idempotent on `platformMessageId`)
+- `POST /api/v1/plugin/outbound/claim` — claim pending cloud/auto replies for Feige send
+- `POST /api/v1/plugin/outbound/:id/ack` — body `{ "ok": true }`
 
-Heartbeat returns `{ monitorEnabled, shopName, platform, platformShopId }` so WindowsAgent knows whether to keep listening.
+Heartbeat returns `{ monitorEnabled, shopName, platform, platformShopId, pendingOutbound }`.
 
 ## Admin API
 
 JWT auth (same secret as UserCore). Routes under `/api/v1/admin`:
 
 - Shops: list/create/get/patch, rotate-bind-code, reset-plugin
-- Conversations: list + messages
+- Conversations: list, messages, **reply** (queues outbound for WindowsAgent)
+- Auto-reply rules: list/create/patch/delete, presets (寒暄模板)
 
 ## Docker
 

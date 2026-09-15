@@ -36,3 +36,9 @@ export async function listConversations(params: { shopId?: number; page?: number
 export async function listMessages(conversationId: number, params?: { page?: number; pageSize?: number }) {
   return unwrap<PageData<MessageItem>>(await client.get(`/conversations/${conversationId}/messages`, { params }))
 }
+
+export async function replyConversation(conversationId: number, content: string) {
+  return unwrap<{ outboundId: number; status: string; message: MessageItem }>(
+    await client.post(`/conversations/${conversationId}/reply`, { content }),
+  )
+}

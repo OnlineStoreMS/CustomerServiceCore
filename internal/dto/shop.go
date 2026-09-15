@@ -45,10 +45,11 @@ type PluginBindResult struct {
 }
 
 type PluginHeartbeatResult struct {
-	MonitorEnabled bool   `json:"monitorEnabled"`
-	ShopName       string `json:"shopName"`
-	Platform       string `json:"platform"`
-	PlatformShopID string `json:"platformShopId"`
+	MonitorEnabled  bool   `json:"monitorEnabled"`
+	ShopName        string `json:"shopName"`
+	Platform        string `json:"platform"`
+	PlatformShopID  string `json:"platformShopId"`
+	PendingOutbound int64  `json:"pendingOutbound"`
 }
 
 type PluginMessagesInput struct {
@@ -103,4 +104,56 @@ type MessageItem struct {
 	Content           string `json:"content"`
 	SentAt            string `json:"sentAt"`
 	CreatedAt         string `json:"createdAt"`
+}
+
+type ConversationReplyInput struct {
+	Content string `json:"content" binding:"required"`
+}
+
+type ConversationReplyResult struct {
+	OutboundID uint64      `json:"outboundId"`
+	Status     string      `json:"status"`
+	Message    MessageItem `json:"message"`
+}
+
+type AutoReplyRuleItem struct {
+	ID          uint64 `json:"id"`
+	ShopID      uint64 `json:"shopId"`
+	ShopName    string `json:"shopName,omitempty"`
+	Name        string `json:"name"`
+	Enabled     bool   `json:"enabled"`
+	MatchMode   string `json:"matchMode"`
+	Keywords    string `json:"keywords"`
+	ReplyText   string `json:"replyText"`
+	Priority    int    `json:"priority"`
+	CooldownSec int    `json:"cooldownSec"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+type AutoReplyRuleInput struct {
+	ShopID      *uint64 `json:"shopId"`
+	Name        string  `json:"name"`
+	Enabled     *bool   `json:"enabled"`
+	MatchMode   string  `json:"matchMode"`
+	Keywords    string  `json:"keywords"`
+	ReplyText   string  `json:"replyText"`
+	Priority    *int    `json:"priority"`
+	CooldownSec *int    `json:"cooldownSec"`
+}
+
+type PluginOutboundItem struct {
+	ID              uint64 `json:"id"`
+	ConversationID  uint64 `json:"conversationId"`
+	Platform        string `json:"platform"`
+	PlatformShopID  string `json:"platformShopId"`
+	PlatformBuyerID string `json:"platformBuyerId"`
+	BuyerName       string `json:"buyerName"`
+	Content         string `json:"content"`
+	Source          string `json:"source"`
+}
+
+type PluginOutboundAckInput struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
 }

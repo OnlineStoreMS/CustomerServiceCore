@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listShops, type ShopItem } from '../api/shops'
 import {
   listConversations,
   listMessages,
+  replyConversation,
   type ConversationItem,
   type MessageItem,
 } from '../api/conversations'
@@ -23,6 +24,9 @@ const messages = ref<MessageItem[]>([])
 const msgTotal = ref(0)
 const msgPage = ref(1)
 const msgPageSize = ref(100)
+const draft = ref('')
+const sending = ref(false)
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function normalizeBuyerName(raw: string | undefined): string {
   let s = (raw || '').trim().replace(/^(name|uid):/i, '')
@@ -125,7 +129,39 @@ async function loadMessages() {
 function selectConv(row: ConversationItem) {
   active.value = row
   msgPage.value = 1
+  draft.value = ''
   void loadMessages()
+}
+
+async function sendReply() {
+  const text = draft.value.trim()
+  if (!active.value || !text || sending.value) return
+  sending.value = true
+  try {
+    await replyConversation(active.value.id, text)
+    draft.value = ''
+    ElMessage.success('已排队，将由本机飞鸽发出')
+    await loadMessages()
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '发送失败')
+  } finally {
+    sending.value = false
+  }
+}
+
+function startPoll() {
+  stopPoll()
+  pollTimer = setInterval(() => {
+    if (active.value) void loadMessages()
+  }, 8000)
+}
+
+function stopPoll() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
 }
 
 watch(shopId, () => {
@@ -149,7 +185,10 @@ function messageImageSrc(content: string | undefined): string {
 onMounted(async () => {
   await loadShops()
   await load()
+  startPoll()
 })
+
+onUnmounted(stopPoll)
 </script>
 
 <template>
@@ -232,6 +271,20 @@ onMounted(async () => {
               layout="total, prev, pager, next"
               @current-change="loadMessages"
             />
+          </div>
+          <div class="composer">
+            <el-input
+              v-model="draft"
+              type="textarea"
+              :rows="2"
+              maxlength="800"
+              show-word-limit
+              placeholder="回复买家，由本机 WindowsAgent 在飞鸽发出"
+              @keydown.enter.exact.prevent="sendReply"
+            />
+            <el-button type="primary" :loading="sending" :disabled="!draft.trim()" @click="sendReply">
+              发送
+            </el-button>
           </div>
         </template>
       </div>
@@ -335,6 +388,17 @@ onMounted(async () => {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+.composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #ebeef5;
+}
+.composer .el-textarea {
+  flex: 1;
 }
 @media (max-width: 900px) {
   .split {

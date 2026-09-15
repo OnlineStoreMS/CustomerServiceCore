@@ -12,6 +12,17 @@ const (
 
 	DirectionIn  = "in"
 	DirectionOut = "out"
+
+	OutboundPending = "pending"
+	OutboundSending = "sending"
+	OutboundSent    = "sent"
+	OutboundFailed  = "failed"
+
+	ReplySourceManual = "manual"
+	ReplySourceAuto   = "auto_reply"
+
+	MatchExact    = "exact"
+	MatchContains = "contains"
 )
 
 type CsShop struct {
@@ -54,20 +65,20 @@ type CsConversation struct {
 func (CsConversation) TableName() string { return "cs_conversations" }
 
 type CsMessage struct {
-	ID               uint64    `gorm:"primaryKey" json:"id"`
-	TenantID         uint64    `gorm:"not null;uniqueIndex:uk_cs_msg_platform" json:"tenantId"`
-	ShopID           uint64    `gorm:"index;not null" json:"shopId"`
-	ConversationID   uint64    `gorm:"index;not null" json:"conversationId"`
-	Platform         string    `gorm:"size:32;not null;uniqueIndex:uk_cs_msg_platform" json:"platform"`
-	PlatformMessageID string   `gorm:"size:128;uniqueIndex:uk_cs_msg_platform" json:"platformMessageId"`
-	PlatformShopID   string    `gorm:"size:64" json:"platformShopId"`
-	PlatformBuyerID  string    `gorm:"size:64;index" json:"platformBuyerId"`
-	Direction        string    `gorm:"size:8;not null" json:"direction"`
-	Content          string    `gorm:"type:text" json:"content"`
-	SentAt           time.Time `gorm:"index" json:"sentAt"`
-	RawJSON          string    `gorm:"type:text" json:"rawJson"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	ID                uint64    `gorm:"primaryKey" json:"id"`
+	TenantID          uint64    `gorm:"not null;uniqueIndex:uk_cs_msg_platform" json:"tenantId"`
+	ShopID            uint64    `gorm:"index;not null" json:"shopId"`
+	ConversationID    uint64    `gorm:"index;not null" json:"conversationId"`
+	Platform          string    `gorm:"size:32;not null;uniqueIndex:uk_cs_msg_platform" json:"platform"`
+	PlatformMessageID string    `gorm:"size:128;uniqueIndex:uk_cs_msg_platform" json:"platformMessageId"`
+	PlatformShopID    string    `gorm:"size:64" json:"platformShopId"`
+	PlatformBuyerID   string    `gorm:"size:64;index" json:"platformBuyerId"`
+	Direction         string    `gorm:"size:8;not null" json:"direction"`
+	Content           string    `gorm:"type:text" json:"content"`
+	SentAt            time.Time `gorm:"index" json:"sentAt"`
+	RawJSON           string    `gorm:"type:text" json:"rawJson"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 func (CsMessage) TableName() string { return "cs_messages" }

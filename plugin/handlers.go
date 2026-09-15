@@ -84,6 +84,43 @@ func (h *Handler) Messages(c *gin.Context) {
 	response.OK(c, item)
 }
 
+func (h *Handler) ClaimOutbound(c *gin.Context) {
+	shop := mustShop(c)
+	if shop == nil {
+		response.Fail(c, http.StatusUnauthorized, service.ErrPluginAuth.Error())
+		return
+	}
+	list, err := h.svc.ClaimOutbound(shop, 5)
+	if err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, list)
+}
+
+func (h *Handler) AckOutbound(c *gin.Context) {
+	shop := mustShop(c)
+	if shop == nil {
+		response.Fail(c, http.StatusUnauthorized, service.ErrPluginAuth.Error())
+		return
+	}
+	id, err := httputil.ParseID(c)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in dto.PluginOutboundAckInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.AckOutbound(shop, id, in.OK, in.Error); err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
 func pluginCreds(c *gin.Context) (key, secret string) {
 	key = strings.TrimSpace(c.GetHeader("X-Plugin-Key"))
 	secret = strings.TrimSpace(c.GetHeader("X-Plugin-Secret"))
