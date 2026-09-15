@@ -77,3 +77,17 @@ func (r *ConversationRepo) GetByBuyer(platform, platformShopID, platformBuyerID 
 func (r *ConversationRepo) Save(conv *model.CsConversation) error {
 	return r.db.Save(conv).Error
 }
+
+func (r *ConversationRepo) ListByShop(shopID uint64) ([]model.CsConversation, error) {
+	q := r.db.Scopes(scopeTenant(r.tenantID))
+	if shopID > 0 {
+		q = q.Where("shop_id = ?", shopID)
+	}
+	var list []model.CsConversation
+	err := q.Order("id ASC").Find(&list).Error
+	return list, err
+}
+
+func (r *ConversationRepo) Delete(id uint64) error {
+	return r.db.Scopes(scopeTenant(r.tenantID)).Delete(&model.CsConversation{}, id).Error
+}

@@ -310,11 +310,12 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 	}
 
 	svc := s.ForTenant(shop.TenantID)
+	_ = svc.collapseDuplicateConversations(shop.ID)
 	accepted, skipped := 0, 0
 	for _, item := range in.Messages {
 		msgID := strings.TrimSpace(item.PlatformMessageID)
-		buyerID := strings.TrimSpace(item.PlatformBuyerID)
-		if msgID == "" || buyerID == "" {
+		buyerID, buyerName, ok := normalizeBuyerIdentity(item.PlatformBuyerID, item.BuyerName)
+		if msgID == "" || !ok {
 			skipped++
 			continue
 		}
@@ -327,7 +328,7 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 		content := strings.TrimSpace(item.Content)
 		preview := messagePreview(content)
 
-		conv, err := svc.ensureConversation(shop, platform, platformShopID, buyerID, item.BuyerName, item.PlatformConversationID, sentAt, preview)
+		conv, err := svc.ensureConversation(shop, platform, platformShopID, buyerID, buyerName, item.PlatformConversationID, sentAt, preview)
 		if err != nil {
 			return nil, err
 		}
@@ -353,8 +354,8 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 			if conv.LastMessageAt == nil || sentAt.After(*conv.LastMessageAt) {
 				conv.LastMessageAt = &sentAt
 				conv.LastMessagePreview = preview
-				if name := strings.TrimSpace(item.BuyerName); name != "" {
-					conv.BuyerName = name
+				if buyerName != "" {
+					conv.BuyerName = buyerName
 				}
 				if cid := strings.TrimSpace(item.PlatformConversationID); cid != "" {
 					conv.PlatformConversationID = cid
@@ -376,10 +377,25 @@ func (s *ShopService) ensureConversation(
 ) (*model.CsConversation, error) {
 	conv, err := s.conversations().GetByBuyer(platform, platformShopID, buyerID)
 	if err == nil {
+		if buyerName != "" && (conv.BuyerName == "" || isJunkBuyerName(conv.BuyerName)) {
+			conv.BuyerName = buyerName
+			_ = s.conversations().Save(conv)
+		}
 		return conv, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
+	}
+	if existing := s.findConversationByNormalizedName(shop.ID, platform, platformShopID, buyerName); existing != nil {
+		if existing.PlatformBuyerID != buyerID {
+			oldID := existing.PlatformBuyerID
+			existing.PlatformBuyerID = buyerID
+			existing.BuyerName = buyerName
+			if saveErr := s.conversations().Save(existing); saveErr != nil {
+				existing.PlatformBuyerID = oldID
+			}
+		}
+		return existing, nil
 	}
 	conv = &model.CsConversation{
 		ShopID:                 shop.ID,
@@ -401,7 +417,109 @@ func (s *ShopService) ensureConversation(
 	return conv, nil
 }
 
+func (s *ShopService) findConversationByNormalizedName(shopID uint64, platform, platformShopID, buyerName string) *model.CsConversation {
+	name := normalizeBuyerName(buyerName)
+	if name == "" || isJunkBuyerName(name) {
+		return nil
+	}
+	list, err := s.conversations().ListByShop(shopID)
+	if err != nil {
+		return nil
+	}
+	var best *model.CsConversation
+	for i := range list {
+		c := &list[i]
+		if !strings.EqualFold(c.Platform, platform) || !strings.EqualFold(c.PlatformShopID, platformShopID) {
+			continue
+		}
+		key, junk := conversationMergeKey(c)
+		if junk || key != name {
+			continue
+		}
+		if best == nil || conversationCanonicalScore(c) > conversationCanonicalScore(best) {
+			best = c
+		}
+	}
+	return best
+}
+
+func (s *ShopService) collapseDuplicateConversations(shopID uint64) error {
+	list, err := s.conversations().ListByShop(shopID)
+	if err != nil {
+		return err
+	}
+	byShop := map[uint64][]*model.CsConversation{}
+	for i := range list {
+		c := &list[i]
+		byShop[c.ShopID] = append(byShop[c.ShopID], c)
+	}
+	for _, group := range byShop {
+		s.collapseShopConversations(group)
+	}
+	return nil
+}
+
+func (s *ShopService) collapseShopConversations(list []*model.CsConversation) {
+	type bucket struct {
+		real []*model.CsConversation
+	}
+	named := map[string]*bucket{}
+	var junk []*model.CsConversation
+	for _, c := range list {
+		key, isJunk := conversationMergeKey(c)
+		if isJunk {
+			junk = append(junk, c)
+			continue
+		}
+		b := named[key]
+		if b == nil {
+			b = &bucket{}
+			named[key] = b
+		}
+		b.real = append(b.real, c)
+	}
+	var onlyCanon *model.CsConversation
+	for key, b := range named {
+		canon := b.real[0]
+		for _, c := range b.real[1:] {
+			if conversationCanonicalScore(c) > conversationCanonicalScore(canon) {
+				canon = c
+			}
+		}
+		for _, c := range b.real {
+			if c.ID == canon.ID {
+				continue
+			}
+			s.mergeConversationInto(canon, c)
+		}
+		canon.BuyerName = key
+		if !strings.HasPrefix(canon.PlatformBuyerID, "uid:") {
+			canon.PlatformBuyerID = "name:" + key
+		}
+		_ = s.conversations().Save(canon)
+		onlyCanon = canon
+	}
+	if len(named) == 1 && len(junk) > 0 && onlyCanon != nil {
+		for _, c := range junk {
+			s.mergeConversationInto(onlyCanon, c)
+		}
+	}
+}
+
+func (s *ShopService) mergeConversationInto(dst, src *model.CsConversation) {
+	if dst == nil || src == nil || dst.ID == 0 || src.ID == 0 || dst.ID == src.ID {
+		return
+	}
+	_ = s.messages().ReassignConversation(src.ID, dst.ID)
+	if src.LastMessageAt != nil && (dst.LastMessageAt == nil || src.LastMessageAt.After(*dst.LastMessageAt)) {
+		dst.LastMessageAt = src.LastMessageAt
+		dst.LastMessagePreview = src.LastMessagePreview
+	}
+	_ = s.conversations().Delete(src.ID)
+}
+
 func (s *ShopService) ListConversations(shopID uint64, page, pageSize int) ([]dto.ConversationItem, int64, error) {
+	_ = s.collapseDuplicateConversations(shopID)
 	list, total, err := s.conversations().List(shopID, page, pageSize)
 	if err != nil {
 		return nil, 0, err

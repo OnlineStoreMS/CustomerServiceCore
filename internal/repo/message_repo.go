@@ -45,3 +45,13 @@ func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) 
 	}
 	return tx.RowsAffected > 0, nil
 }
+
+func (r *MessageRepo) ReassignConversation(fromID, toID uint64) error {
+	if fromID == 0 || toID == 0 || fromID == toID {
+		return nil
+	}
+	return r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id = ?", fromID).
+		Update("conversation_id", toID).Error
+}
