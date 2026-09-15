@@ -375,11 +375,11 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 				}
 				_ = svc.conversations().Save(conv)
 			}
-			if dir == model.DirectionIn {
-				svc.maybeAutoReply(shop, conv, msg)
-			}
 		} else {
 			skipped++
+		}
+		if dir == model.DirectionIn {
+			svc.maybeAutoReply(shop, conv, msg)
 		}
 	}
 	return &dto.PluginMessagesResult{Accepted: accepted, Skipped: skipped}, nil

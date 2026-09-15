@@ -37,6 +37,20 @@ func TestMatchAutoReply_exactAndContains(t *testing.T) {
 	if !matchAutoReply("好的谢谢老板", model.MatchContains, kws) {
 		t.Fatal("contains 谢谢")
 	}
+	if !matchAutoReply("好的 谢谢", model.MatchExact, splitKeywords("好的,好的谢谢,谢谢")) {
+		t.Fatal("exact 好的 谢谢 after normalize")
+	}
+}
+
+func TestIsJunkMessageContent_feigeChrome(t *testing.T) {
+	for _, s := range []string{"收起", "消息来源", "发送方式 商家配置发送", "用户超时未回复，系统关闭会话", "功能路径 飞鸽-客服管理"} {
+		if !isJunkMessageContent(s) {
+			t.Fatalf("expected junk: %q", s)
+		}
+	}
+	if isJunkMessageContent("好的") || isJunkMessageContent("谢谢") {
+		t.Fatal("buyer greetings must not be junk")
+	}
 }
 
 func TestConversationMergeKey_sameBuyer(t *testing.T) {

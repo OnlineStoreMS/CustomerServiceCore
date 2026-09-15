@@ -141,5 +141,11 @@ func isJunkMessageContent(s string) bool {
 	if strings.HasPrefix(s, "抖音-") {
 		return true
 	}
+	if s == "收起" || s == "消息来源" || strings.HasPrefix(s, "发送方式") || strings.HasPrefix(s, "消息类型") || strings.HasPrefix(s, "功能路径") {
+		return true
+	}
+	if strings.Contains(s, "用户超时未回复") || strings.Contains(s, "系统关闭会话") || strings.Contains(s, "商家配置发送") || strings.Contains(s, "人工客服欢迎语") {
+		return true
+	}
 	return junkPriceRe.MatchString(s)
 }
