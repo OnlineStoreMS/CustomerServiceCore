@@ -46,6 +46,16 @@ func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) 
 	return tx.RowsAffected > 0, nil
 }
 
+func (r *MessageRepo) DeleteByShop(shopID uint64) error {
+	if shopID == 0 {
+		return nil
+	}
+	return r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("shop_id = ?", shopID).
+		Delete(&model.CsMessage{}).Error
+}
+
 func (r *MessageRepo) ReassignConversation(fromID, toID uint64) error {
 	if fromID == 0 || toID == 0 || fromID == toID {
 		return nil

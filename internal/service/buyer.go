@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	buyerSpaceRe   = regexp.MustCompile(`\s+`)
-	buyerNoteRe    = regexp.MustCompile(`\s*添加备注.*$`)
-	buyerMoreRe    = regexp.MustCompile(`\s*更多.*$`)
-	buyerBadgeRe   = regexp.MustCompile(`\s*\(\d+\)\s*$`)
-	buyerNameIDRe  = regexp.MustCompile(`^(name|uid):`)
+	buyerSpaceRe  = regexp.MustCompile(`\s+`)
+	buyerNoteRe   = regexp.MustCompile(`\s*添加备注.*$`)
+	buyerMoreRe   = regexp.MustCompile(`\s*更多.*$`)
+	buyerBadgeRe  = regexp.MustCompile(`\s*\(\d+\)\s*$`)
+	buyerNameIDRe = regexp.MustCompile(`^(name|uid):`)
 )
 
 var buyerChromeExact = map[string]struct{}{
@@ -103,4 +103,20 @@ func conversationCanonicalScore(c *model.CsConversation) int {
 		score += 2
 	}
 	return score
+}
+
+var junkPriceRe = regexp.MustCompile(`^(¥\s*[\d,.]+|[\d,.]+\s*元)(\s*\(\d+\s*次\))?$|^[\d,.]+\s*\(\d+\s*次\)$`)
+
+func isJunkMessageContent(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return true
+	}
+	if strings.Contains(s, "店铺消费") || strings.Contains(s, "客单价") || strings.Contains(s, "商品详情") {
+		return true
+	}
+	if strings.HasPrefix(s, "抖音-") {
+		return true
+	}
+	return junkPriceRe.MatchString(s)
 }

@@ -310,6 +310,12 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 	}
 
 	svc := s.ForTenant(shop.TenantID)
+	if in.CurrentListEmpty {
+		if err := svc.clearShopConversations(shop.ID); err != nil {
+			return nil, err
+		}
+		return &dto.PluginMessagesResult{}, nil
+	}
 	_ = svc.collapseDuplicateConversations(shop.ID)
 	accepted, skipped := 0, 0
 	for _, item := range in.Messages {
@@ -326,6 +332,10 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 		}
 		sentAt := parseSentAt(item.SentAt)
 		content := strings.TrimSpace(item.Content)
+		if isJunkMessageContent(content) {
+			skipped++
+			continue
+		}
 		preview := messagePreview(content)
 
 		conv, err := svc.ensureConversation(shop, platform, platformShopID, buyerID, buyerName, item.PlatformConversationID, sentAt, preview)
@@ -518,15 +528,39 @@ func (s *ShopService) mergeConversationInto(dst, src *model.CsConversation) {
 	_ = s.conversations().Delete(src.ID)
 }
 
+func (s *ShopService) clearShopConversations(shopID uint64) error {
+	if shopID == 0 {
+		return nil
+	}
+	if err := s.messages().DeleteByShop(shopID); err != nil {
+		return err
+	}
+	return s.conversations().DeleteByShop(shopID)
+}
+
 func (s *ShopService) ListConversations(shopID uint64, page, pageSize int) ([]dto.ConversationItem, int64, error) {
 	_ = s.collapseDuplicateConversations(shopID)
 	list, total, err := s.conversations().List(shopID, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
+	shopByID := map[uint64]model.CsShop{}
+	if shops, err := s.shops().List(); err == nil {
+		for i := range shops {
+			shopByID[shops[i].ID] = shops[i]
+		}
+	}
 	out := make([]dto.ConversationItem, 0, len(list))
 	for i := range list {
-		out = append(out, toConversationItem(&list[i]))
+		item := toConversationItem(&list[i])
+		if sh, ok := shopByID[list[i].ShopID]; ok {
+			item.ShopName = sh.Name
+			item.PlatformShopName = sh.PlatformShopName
+			if item.ShopName == "" {
+				item.ShopName = sh.PlatformShopName
+			}
+		}
+		out = append(out, item)
 	}
 	return out, total, nil
 }

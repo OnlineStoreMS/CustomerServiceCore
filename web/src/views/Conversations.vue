@@ -122,6 +122,11 @@ onMounted(async () => {
           @row-click="selectConv"
         >
           <el-table-column prop="buyerName" label="买家" min-width="100" />
+          <el-table-column label="店铺" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.shopName || row.platformShopName || row.platformShopId || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="lastMessagePreview" label="最近消息" min-width="160" show-overflow-tooltip />
           <el-table-column prop="lastMessageAt" label="时间" width="160" />
         </el-table>
@@ -141,7 +146,7 @@ onMounted(async () => {
         <template v-else>
           <div class="msg-head">
             <strong>{{ active.buyerName || active.platformBuyerId }}</strong>
-            <span class="muted">{{ active.platformShopId }}</span>
+            <span class="muted">{{ active.shopName || active.platformShopName || active.platformShopId }}</span>
           </div>
           <div class="msg-list" v-loading="msgLoading">
             <div

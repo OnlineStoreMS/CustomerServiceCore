@@ -91,3 +91,10 @@ func (r *ConversationRepo) ListByShop(shopID uint64) ([]model.CsConversation, er
 func (r *ConversationRepo) Delete(id uint64) error {
 	return r.db.Scopes(scopeTenant(r.tenantID)).Delete(&model.CsConversation{}, id).Error
 }
+
+func (r *ConversationRepo) DeleteByShop(shopID uint64) error {
+	if shopID == 0 {
+		return nil
+	}
+	return r.db.Scopes(scopeTenant(r.tenantID)).Where("shop_id = ?", shopID).Delete(&model.CsConversation{}).Error
+}

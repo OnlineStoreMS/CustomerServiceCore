@@ -3,8 +3,10 @@ import client, { unwrap, type PageData } from './client'
 export interface ConversationItem {
   id: number
   shopId: number
+  shopName?: string
   platform: string
   platformShopId: string
+  platformShopName?: string
   platformBuyerId: string
   buyerName: string
   platformConversationId?: string

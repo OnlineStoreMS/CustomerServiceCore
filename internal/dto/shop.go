@@ -52,10 +52,12 @@ type PluginHeartbeatResult struct {
 }
 
 type PluginMessagesInput struct {
-	Platform         string               `json:"platform"`
-	PlatformShopID   string               `json:"platformShopId"`
-	PlatformShopName string               `json:"platformShopName"`
-	Messages         []PluginMessageItem  `json:"messages"`
+	Platform         string              `json:"platform"`
+	PlatformShopID   string              `json:"platformShopId"`
+	PlatformShopName string              `json:"platformShopName"`
+	CurrentListEmpty bool                `json:"currentListEmpty"`
+	CurrentBuyers    []string            `json:"currentBuyers"`
+	Messages         []PluginMessageItem `json:"messages"`
 }
 
 type PluginMessageItem struct {
@@ -77,8 +79,10 @@ type PluginMessagesResult struct {
 type ConversationItem struct {
 	ID                     uint64 `json:"id"`
 	ShopID                 uint64 `json:"shopId"`
+	ShopName               string `json:"shopName,omitempty"`
 	Platform               string `json:"platform"`
 	PlatformShopID         string `json:"platformShopId"`
+	PlatformShopName       string `json:"platformShopName,omitempty"`
 	PlatformBuyerID        string `json:"platformBuyerId"`
 	BuyerName              string `json:"buyerName"`
 	PlatformConversationID string `json:"platformConversationId,omitempty"`
