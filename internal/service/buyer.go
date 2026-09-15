@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -25,6 +26,11 @@ var buyerChromeExact = map[string]struct{}{
 func normalizeBuyerName(raw string) string {
 	s := strings.TrimSpace(raw)
 	s = buyerNameIDRe.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "重复来访", " ")
+	s = strings.ReplaceAll(s, "进线", " ")
+	s = regexp.MustCompile(`\b\d{1,2}:\d{2}(:\d{2})?\b`).ReplaceAllString(s, " ")
+	s = regexp.MustCompile(`(?i)\b\d{1,2}\s*s\b`).ReplaceAllString(s, " ")
+	s = regexp.MustCompile(`\d{1,2}\s*秒`).ReplaceAllString(s, " ")
 	s = buyerSpaceRe.ReplaceAllString(s, " ")
 	s = strings.TrimSpace(s)
 	s = buyerNoteRe.ReplaceAllString(s, "")
@@ -33,6 +39,9 @@ func normalizeBuyerName(raw string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimSuffix(s, "添加备注")
 	s = strings.TrimSpace(s)
+	if fields := strings.Fields(s); len(fields) > 0 {
+		s = fields[0]
+	}
 	return s
 }
 
@@ -78,10 +87,18 @@ func conversationMergeKey(c *model.CsConversation) (key string, junk bool) {
 	if name == "" {
 		name = normalizeBuyerName(c.PlatformBuyerID)
 	}
-	if isJunkBuyerName(name) || isJunkBuyerName(c.BuyerName) || isJunkBuyerName(c.PlatformBuyerID) {
+	if name == "" || isJunkBuyerName(name) {
 		return name, true
 	}
 	return name, false
+}
+
+func conversationGroupKey(c *model.CsConversation) string {
+	name, junk := conversationMergeKey(c)
+	if junk || name == "" {
+		return ""
+	}
+	return fmt.Sprintf("%d|%s|%s|%s", c.ShopID, strings.ToLower(c.Platform), strings.ToLower(c.PlatformShopID), name)
 }
 
 func conversationCanonicalScore(c *model.CsConversation) int {
@@ -112,7 +129,13 @@ func isJunkMessageContent(s string) bool {
 	if s == "" {
 		return true
 	}
-	if strings.Contains(s, "店铺消费") || strings.Contains(s, "客单价") || strings.Contains(s, "商品详情") {
+	if strings.Contains(s, "店铺消费") || strings.Contains(s, "客单价") || strings.Contains(s, "商品详情") || strings.Contains(s, "重复来访") {
+		return true
+	}
+	if strings.Contains(s, "用户正在查看商品") || strings.Contains(s, "电商小助手") || strings.Contains(s, "计算价格") || strings.Contains(s, "邀请下单") || strings.Contains(s, "规格/属性") {
+		return true
+	}
+	if matched, _ := regexp.MatchString(`客服.{0,12}接入`, s); matched {
 		return true
 	}
 	if strings.HasPrefix(s, "抖音-") {

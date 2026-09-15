@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"strings"
+
 	"customerservicecore/internal/model"
 
 	"gorm.io/gorm"
@@ -64,4 +66,44 @@ func (r *MessageRepo) ReassignConversation(fromID, toID uint64) error {
 		Scopes(scopeTenant(r.tenantID)).
 		Where("conversation_id = ?", fromID).
 		Update("conversation_id", toID).Error
+}
+
+func (r *MessageRepo) ListByConversationIDs(ids []uint64) ([]model.CsMessage, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var list []model.CsMessage
+	err := r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id IN ?", ids).
+		Order("sent_at ASC, id ASC").
+		Find(&list).Error
+	return list, err
+}
+
+func (r *MessageRepo) DeduplicateConversation(conversationID uint64) error {
+	if conversationID == 0 {
+		return nil
+	}
+	var list []model.CsMessage
+	if err := r.db.Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id = ?", conversationID).
+		Order("sent_at ASC, id ASC").
+		Find(&list).Error; err != nil {
+		return err
+	}
+	seen := map[string]struct{}{}
+	var dupes []uint64
+	for i := range list {
+		key := list[i].Direction + "\n" + strings.TrimSpace(list[i].Content)
+		if _, ok := seen[key]; ok {
+			dupes = append(dupes, list[i].ID)
+			continue
+		}
+		seen[key] = struct{}{}
+	}
+	if len(dupes) == 0 {
+		return nil
+	}
+	return r.db.Scopes(scopeTenant(r.tenantID)).Delete(&model.CsMessage{}, dupes).Error
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -470,10 +471,7 @@ func (s *ShopService) collapseDuplicateConversations(shopID uint64) error {
 }
 
 func (s *ShopService) collapseShopConversations(list []*model.CsConversation) {
-	type bucket struct {
-		real []*model.CsConversation
-	}
-	named := map[string]*bucket{}
+	named := map[string][]*model.CsConversation{}
 	var junk []*model.CsConversation
 	for _, c := range list {
 		key, isJunk := conversationMergeKey(c)
@@ -481,22 +479,12 @@ func (s *ShopService) collapseShopConversations(list []*model.CsConversation) {
 			junk = append(junk, c)
 			continue
 		}
-		b := named[key]
-		if b == nil {
-			b = &bucket{}
-			named[key] = b
-		}
-		b.real = append(b.real, c)
+		named[key] = append(named[key], c)
 	}
 	var onlyCanon *model.CsConversation
-	for key, b := range named {
-		canon := b.real[0]
-		for _, c := range b.real[1:] {
-			if conversationCanonicalScore(c) > conversationCanonicalScore(canon) {
-				canon = c
-			}
-		}
-		for _, c := range b.real {
+	for key, group := range named {
+		canon := s.pickCanonicalConversation(key, group)
+		for _, c := range group {
 			if c.ID == canon.ID {
 				continue
 			}
@@ -504,9 +492,20 @@ func (s *ShopService) collapseShopConversations(list []*model.CsConversation) {
 		}
 		canon.BuyerName = key
 		if !strings.HasPrefix(canon.PlatformBuyerID, "uid:") {
-			canon.PlatformBuyerID = "name:" + key
+			wantID := "name:" + key
+			if canon.PlatformBuyerID != wantID {
+				oldID := canon.PlatformBuyerID
+				canon.PlatformBuyerID = wantID
+				if err := s.conversations().Save(canon); err != nil {
+					canon.PlatformBuyerID = oldID
+					_ = s.conversations().Save(canon)
+				}
+			} else {
+				_ = s.conversations().Save(canon)
+			}
+		} else {
+			_ = s.conversations().Save(canon)
 		}
-		_ = s.conversations().Save(canon)
 		onlyCanon = canon
 	}
 	if len(named) == 1 && len(junk) > 0 && onlyCanon != nil {
@@ -514,6 +513,26 @@ func (s *ShopService) collapseShopConversations(list []*model.CsConversation) {
 			s.mergeConversationInto(onlyCanon, c)
 		}
 	}
+}
+
+func (s *ShopService) pickCanonicalConversation(key string, group []*model.CsConversation) *model.CsConversation {
+	wantID := "name:" + key
+	var canon *model.CsConversation
+	for _, c := range group {
+		if c.PlatformBuyerID == wantID {
+			canon = c
+			break
+		}
+	}
+	if canon == nil {
+		canon = group[0]
+		for _, c := range group[1:] {
+			if conversationCanonicalScore(c) > conversationCanonicalScore(canon) {
+				canon = c
+			}
+		}
+	}
+	return canon
 }
 
 func (s *ShopService) mergeConversationInto(dst, src *model.CsConversation) {
@@ -526,6 +545,56 @@ func (s *ShopService) mergeConversationInto(dst, src *model.CsConversation) {
 		dst.LastMessagePreview = src.LastMessagePreview
 	}
 	_ = s.conversations().Delete(src.ID)
+	_ = s.messages().DeduplicateConversation(dst.ID)
+}
+
+func (s *ShopService) uniqueConversations(list []model.CsConversation) []mergedConversation {
+	type group struct {
+		items []model.CsConversation
+		name  string
+	}
+	named := map[string]*group{}
+	var leftover []mergedConversation
+	for i := range list {
+		c := list[i]
+		name, junk := conversationMergeKey(&c)
+		gk := conversationGroupKey(&c)
+		if junk || gk == "" {
+			leftover = append(leftover, mergedConversation{conv: c, ids: []uint64{c.ID}})
+			continue
+		}
+		g := named[gk]
+		if g == nil {
+			g = &group{name: name}
+			named[gk] = g
+		}
+		g.items = append(g.items, c)
+	}
+	out := make([]mergedConversation, 0, len(named)+len(leftover))
+	for _, g := range named {
+		ptrs := make([]*model.CsConversation, 0, len(g.items))
+		for i := range g.items {
+			ptrs = append(ptrs, &g.items[i])
+		}
+		canon := *s.pickCanonicalConversation(g.name, ptrs)
+		ids := make([]uint64, 0, len(g.items))
+		for i := range g.items {
+			src := g.items[i]
+			ids = append(ids, src.ID)
+			if src.LastMessageAt != nil && (canon.LastMessageAt == nil || src.LastMessageAt.After(*canon.LastMessageAt)) {
+				canon.LastMessageAt = src.LastMessageAt
+				canon.LastMessagePreview = src.LastMessagePreview
+			}
+		}
+		canon.BuyerName = g.name
+		out = append(out, mergedConversation{conv: canon, ids: ids})
+	}
+	return append(out, leftover...)
+}
+
+type mergedConversation struct {
+	conv model.CsConversation
+	ids  []uint64
 }
 
 func (s *ShopService) clearShopConversations(shopID uint64) error {
@@ -540,20 +609,59 @@ func (s *ShopService) clearShopConversations(shopID uint64) error {
 
 func (s *ShopService) ListConversations(shopID uint64, page, pageSize int) ([]dto.ConversationItem, int64, error) {
 	_ = s.collapseDuplicateConversations(shopID)
-	list, total, err := s.conversations().List(shopID, page, pageSize)
+	all, err := s.conversations().ListByShop(shopID)
 	if err != nil {
 		return nil, 0, err
 	}
+	merged := s.uniqueConversations(all)
+	sort.SliceStable(merged, func(i, j int) bool {
+		ai, aj := merged[i].conv.LastMessageAt, merged[j].conv.LastMessageAt
+		if ai == nil && aj == nil {
+			return merged[i].conv.ID > merged[j].conv.ID
+		}
+		if ai == nil {
+			return false
+		}
+		if aj == nil {
+			return true
+		}
+		if ai.Equal(*aj) {
+			return merged[i].conv.ID > merged[j].conv.ID
+		}
+		return ai.After(*aj)
+	})
+	total := int64(len(merged))
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	start := (page - 1) * pageSize
+	if start > len(merged) {
+		start = len(merged)
+	}
+	end := start + pageSize
+	if end > len(merged) {
+		end = len(merged)
+	}
+	pageItems := merged[start:end]
+
 	shopByID := map[uint64]model.CsShop{}
 	if shops, err := s.shops().List(); err == nil {
 		for i := range shops {
 			shopByID[shops[i].ID] = shops[i]
 		}
 	}
-	out := make([]dto.ConversationItem, 0, len(list))
-	for i := range list {
-		item := toConversationItem(&list[i])
-		if sh, ok := shopByID[list[i].ShopID]; ok {
+	out := make([]dto.ConversationItem, 0, len(pageItems))
+	for i := range pageItems {
+		item := toConversationItem(&pageItems[i].conv)
+		item.BuyerName = normalizeBuyerName(item.BuyerName)
+		if item.BuyerName == "" {
+			item.BuyerName = normalizeBuyerName(item.PlatformBuyerID)
+		}
+		item.MergedIDs = pageItems[i].ids
+		if sh, ok := shopByID[pageItems[i].conv.ShopID]; ok {
 			item.ShopName = sh.Name
 			item.PlatformShopName = sh.PlatformShopName
 			if item.ShopName == "" {
@@ -566,20 +674,70 @@ func (s *ShopService) ListConversations(shopID uint64, page, pageSize int) ([]dt
 }
 
 func (s *ShopService) ListMessages(conversationID uint64, page, pageSize int) ([]dto.MessageItem, int64, error) {
-	if _, err := s.conversations().Get(conversationID); errors.Is(err, gorm.ErrRecordNotFound) {
+	conv, err := s.conversations().Get(conversationID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, 0, ErrNotFound
 	} else if err != nil {
 		return nil, 0, err
 	}
-	list, total, err := s.messages().ListByConversation(conversationID, page, pageSize)
+	ids := []uint64{conv.ID}
+	if key, junk := conversationMergeKey(conv); !junk && key != "" {
+		all, listErr := s.conversations().ListByShop(conv.ShopID)
+		if listErr == nil {
+			gk := conversationGroupKey(conv)
+			seen := map[uint64]struct{}{conv.ID: {}}
+			for i := range all {
+				if conversationGroupKey(&all[i]) != gk || gk == "" {
+					continue
+				}
+				if _, ok := seen[all[i].ID]; ok {
+					continue
+				}
+				seen[all[i].ID] = struct{}{}
+				ids = append(ids, all[i].ID)
+			}
+		}
+	}
+	list, err := s.messages().ListByConversationIDs(ids)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]dto.MessageItem, 0, len(list))
-	for i := range list {
-		out = append(out, toMessageItem(&list[i]))
+	list = dedupeMessages(list)
+	total := int64(len(list))
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	start := (page - 1) * pageSize
+	if start > len(list) {
+		start = len(list)
+	}
+	end := start + pageSize
+	if end > len(list) {
+		end = len(list)
+	}
+	pageList := list[start:end]
+	out := make([]dto.MessageItem, 0, len(pageList))
+	for i := range pageList {
+		out = append(out, toMessageItem(&pageList[i]))
 	}
 	return out, total, nil
+}
+
+func dedupeMessages(list []model.CsMessage) []model.CsMessage {
+	seen := map[string]struct{}{}
+	out := make([]model.CsMessage, 0, len(list))
+	for i := range list {
+		key := list[i].Direction + "\n" + strings.TrimSpace(list[i].Content)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, list[i])
+	}
+	return out
 }
 
 func (s *ShopService) toItem(shop *model.CsShop) dto.ShopItem {

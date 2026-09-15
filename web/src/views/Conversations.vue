@@ -15,14 +15,63 @@ const loading = ref(false)
 const list = ref<ConversationItem[]>([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(50)
 
 const active = ref<ConversationItem | null>(null)
 const msgLoading = ref(false)
 const messages = ref<MessageItem[]>([])
 const msgTotal = ref(0)
 const msgPage = ref(1)
-const msgPageSize = ref(50)
+const msgPageSize = ref(100)
+
+function normalizeBuyerName(raw: string | undefined): string {
+  let s = (raw || '').trim().replace(/^(name|uid):/i, '')
+  s = s.replace(/重复来访/g, ' ').replace(/进线/g, ' ')
+  s = s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, ' ')
+  s = s.replace(/\b\d{1,2}\s*s\b/gi, ' ').replace(/\d{1,2}\s*秒/g, ' ')
+  s = s.replace(/\s+/g, ' ').trim()
+  return (s.split(/\s+/)[0] || '').trim()
+}
+
+function conversationGroupKey(row: ConversationItem): string {
+  const name = normalizeBuyerName(row.buyerName || row.platformBuyerId)
+  return [row.shopId || 0, row.platform || '', row.platformShopId || '', name].join('|')
+}
+
+function mergeConversationRows(rows: ConversationItem[]): ConversationItem[] {
+  const map = new Map<string, ConversationItem>()
+  for (const row of rows) {
+    const name = normalizeBuyerName(row.buyerName || row.platformBuyerId)
+    const key = name ? conversationGroupKey(row) : `id:${row.id}`
+    const prev = map.get(key)
+    const ids = new Set<number>([...(prev?.mergedIds || []), ...(row.mergedIds || []), row.id, prev?.id].filter(Boolean) as number[])
+    if (!prev) {
+      map.set(key, { ...row, buyerName: name || row.buyerName, mergedIds: [...ids] })
+      continue
+    }
+    const newer = (row.lastMessageAt || '') > (prev.lastMessageAt || '')
+    map.set(key, {
+      ...(newer ? row : prev),
+      buyerName: name || (newer ? row.buyerName : prev.buyerName),
+      lastMessageAt: newer ? row.lastMessageAt : prev.lastMessageAt,
+      lastMessagePreview: newer ? row.lastMessagePreview : prev.lastMessagePreview,
+      mergedIds: [...ids],
+    })
+  }
+  return [...map.values()].sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''))
+}
+
+function dedupeMessages(rows: MessageItem[]): MessageItem[] {
+  const seen = new Set<string>()
+  const out: MessageItem[] = []
+  for (const row of rows) {
+    const key = `${row.direction}\n${(row.content || '').trim()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(row)
+  }
+  return out.sort((a, b) => (a.sentAt || '').localeCompare(b.sentAt || '') || a.id - b.id)
+}
 
 async function loadShops() {
   try {
@@ -37,11 +86,13 @@ async function load() {
   try {
     const res = await listConversations({
       shopId: shopId.value,
-      page: page.value,
-      pageSize: pageSize.value,
+      page: 1,
+      pageSize: 200,
     })
-    list.value = res.list || []
-    total.value = res.total || 0
+    const merged = mergeConversationRows(res.list || [])
+    total.value = merged.length
+    const start = (page.value - 1) * pageSize.value
+    list.value = merged.slice(start, start + pageSize.value)
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败')
   } finally {
@@ -56,12 +107,14 @@ async function loadMessages() {
   }
   msgLoading.value = true
   try {
-    const res = await listMessages(active.value.id, {
-      page: msgPage.value,
-      pageSize: msgPageSize.value,
-    })
-    messages.value = res.list || []
-    msgTotal.value = res.total || 0
+    const ids = [...new Set([active.value.id, ...(active.value.mergedIds || [])])].filter(Boolean)
+    const chunks = await Promise.all(
+      ids.map((id) => listMessages(id, { page: 1, pageSize: 200 }))
+    )
+    const merged = dedupeMessages(chunks.flatMap((c) => c.list || []))
+    msgTotal.value = merged.length
+    const start = (msgPage.value - 1) * msgPageSize.value
+    messages.value = merged.slice(start, start + msgPageSize.value)
   } catch (e: any) {
     ElMessage.error(e?.message || '加载消息失败')
   } finally {
@@ -121,7 +174,11 @@ onMounted(async () => {
           height="100%"
           @row-click="selectConv"
         >
-          <el-table-column prop="buyerName" label="买家" min-width="100" />
+          <el-table-column label="买家" min-width="100">
+            <template #default="{ row }">
+              {{ normalizeBuyerName(row.buyerName || row.platformBuyerId) || row.buyerName }}
+            </template>
+          </el-table-column>
           <el-table-column label="店铺" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
               {{ row.shopName || row.platformShopName || row.platformShopId || '-' }}
@@ -145,7 +202,7 @@ onMounted(async () => {
         <div v-if="!active" class="empty">选择左侧会话查看消息</div>
         <template v-else>
           <div class="msg-head">
-            <strong>{{ active.buyerName || active.platformBuyerId }}</strong>
+            <strong>{{ normalizeBuyerName(active.buyerName || active.platformBuyerId) || active.buyerName }}</strong>
             <span class="muted">{{ active.shopName || active.platformShopName || active.platformShopId }}</span>
           </div>
           <div class="msg-list" v-loading="msgLoading">

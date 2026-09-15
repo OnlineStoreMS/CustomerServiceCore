@@ -77,20 +77,21 @@ type PluginMessagesResult struct {
 }
 
 type ConversationItem struct {
-	ID                     uint64 `json:"id"`
-	ShopID                 uint64 `json:"shopId"`
-	ShopName               string `json:"shopName,omitempty"`
-	Platform               string `json:"platform"`
-	PlatformShopID         string `json:"platformShopId"`
-	PlatformShopName       string `json:"platformShopName,omitempty"`
-	PlatformBuyerID        string `json:"platformBuyerId"`
-	BuyerName              string `json:"buyerName"`
-	PlatformConversationID string `json:"platformConversationId,omitempty"`
-	LastMessageAt          string `json:"lastMessageAt,omitempty"`
-	LastMessagePreview     string `json:"lastMessagePreview,omitempty"`
-	UnreadHint             int    `json:"unreadHint"`
-	CreatedAt              string `json:"createdAt"`
-	UpdatedAt              string `json:"updatedAt"`
+	ID                     uint64   `json:"id"`
+	ShopID                 uint64   `json:"shopId"`
+	ShopName               string   `json:"shopName,omitempty"`
+	Platform               string   `json:"platform"`
+	PlatformShopID         string   `json:"platformShopId"`
+	PlatformShopName       string   `json:"platformShopName,omitempty"`
+	PlatformBuyerID        string   `json:"platformBuyerId"`
+	BuyerName              string   `json:"buyerName"`
+	PlatformConversationID string   `json:"platformConversationId,omitempty"`
+	LastMessageAt          string   `json:"lastMessageAt,omitempty"`
+	LastMessagePreview     string   `json:"lastMessagePreview,omitempty"`
+	UnreadHint             int      `json:"unreadHint"`
+	MergedIDs              []uint64 `json:"mergedIds,omitempty"`
+	CreatedAt              string   `json:"createdAt"`
+	UpdatedAt              string   `json:"updatedAt"`
 }
 
 type MessageItem struct {

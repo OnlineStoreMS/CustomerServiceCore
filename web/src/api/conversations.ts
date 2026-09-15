@@ -13,6 +13,7 @@ export interface ConversationItem {
   lastMessageAt?: string
   lastMessagePreview?: string
   unreadHint: number
+  mergedIds?: number[]
   createdAt: string
   updatedAt: string
 }
