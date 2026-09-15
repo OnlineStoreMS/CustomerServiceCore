@@ -81,6 +81,18 @@ watch(shopId, () => {
   void load()
 })
 
+function messageImageSrc(content: string | undefined): string {
+  const raw = (content || '').trim()
+  if (!raw) return ''
+  const mdData = raw.match(/!\[[^\]]*\]\(\s*(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+)\)/s)
+  if (mdData?.[1]) return mdData[1].replace(/\s+/g, '')
+  const mdHttp = raw.match(/!\[[^\]]*\]\(\s*(https?:\/\/[^)\s]+)\)/)
+  if (mdHttp?.[1]) return mdHttp[1]
+  if (raw.startsWith('data:image/')) return raw.replace(/\s+/g, '')
+  if (/^https?:\/\//i.test(raw) && /(image|\.png|\.jpe?g|\.gif|\.webp)/i.test(raw)) return raw
+  return ''
+}
+
 onMounted(async () => {
   await loadShops()
   await load()
@@ -138,7 +150,15 @@ onMounted(async () => {
               class="msg"
               :class="m.direction === 'out' ? 'out' : 'in'"
             >
-              <div class="bubble">{{ m.content || '(空)' }}</div>
+              <div class="bubble">
+                <img
+                  v-if="messageImageSrc(m.content)"
+                  :src="messageImageSrc(m.content)"
+                  class="msg-img"
+                  alt="图片"
+                />
+                <template v-else>{{ m.content || '(空)' }}</template>
+              </div>
               <div class="meta">{{ m.direction }} · {{ m.sentAt }}</div>
             </div>
           </div>
@@ -234,6 +254,16 @@ onMounted(async () => {
   white-space: pre-wrap;
   word-break: break-word;
   text-align: left;
+}
+.msg-img {
+  display: block;
+  max-width: 240px;
+  max-height: 320px;
+  border-radius: 6px;
+}
+.bubble:has(.msg-img) {
+  padding: 4px;
+  background: transparent;
 }
 .msg.out .bubble {
   background: #ecf5ff;

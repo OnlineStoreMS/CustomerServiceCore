@@ -325,7 +325,7 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 		}
 		sentAt := parseSentAt(item.SentAt)
 		content := strings.TrimSpace(item.Content)
-		preview := truncateRunes(content, 200)
+		preview := messagePreview(content)
 
 		conv, err := svc.ensureConversation(shop, platform, platformShopID, buyerID, item.BuyerName, item.PlatformConversationID, sentAt, preview)
 		if err != nil {
@@ -454,7 +454,7 @@ func toConversationItem(c *model.CsConversation) dto.ConversationItem {
 		ID: c.ID, ShopID: c.ShopID, Platform: c.Platform,
 		PlatformShopID: c.PlatformShopID, PlatformBuyerID: c.PlatformBuyerID,
 		BuyerName: c.BuyerName, PlatformConversationID: c.PlatformConversationID,
-		LastMessagePreview: c.LastMessagePreview, UnreadHint: c.UnreadHint,
+		LastMessagePreview: previewText(c.LastMessagePreview), UnreadHint: c.UnreadHint,
 		CreatedAt: formatTime(c.CreatedAt), UpdatedAt: formatTime(c.UpdatedAt),
 	}
 	if c.LastMessageAt != nil {
@@ -521,6 +521,37 @@ func millisOrSeconds(n int64) time.Time {
 		return time.UnixMilli(n)
 	}
 	return time.Unix(n, 0)
+}
+
+func messagePreview(content string) string {
+	if looksLikeImageContent(content) {
+		return "[图片]"
+	}
+	return truncateRunes(content, 200)
+}
+
+func previewText(s string) string {
+	if looksLikeImageContent(s) {
+		return "[图片]"
+	}
+	return s
+}
+
+func looksLikeImageContent(s string) bool {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return false
+	}
+	if strings.HasPrefix(t, "data:image/") {
+		return true
+	}
+	if strings.Contains(t, "data:image/") {
+		return true
+	}
+	if strings.HasPrefix(t, "![") && strings.Contains(t, "](") {
+		return true
+	}
+	return false
 }
 
 func truncateRunes(s string, max int) string {
