@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ElMessage, ElNotification } from 'element-plus'
+import { Close, CopyDocument, Download, ZoomIn } from '@element-plus/icons-vue'
 import { listShops, type ShopItem } from '../api/shops'
 import {
   listConversations,
@@ -26,7 +27,13 @@ const msgPage = ref(1)
 const msgPageSize = ref(100)
 const draft = ref('')
 const sending = ref(false)
+const msgListEl = ref<HTMLElement | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let polling = false
+let seenPrimed = false
+const seenStamp = new Map<string, string>()
+const defaultTitle = typeof document !== 'undefined' ? document.title : '客服中心'
+let titleTimer: ReturnType<typeof setTimeout> | null = null
 
 function normalizeBuyerName(raw: string | undefined): string {
   let s = (raw || '').trim().replace(/^(name|uid):/i, '')
@@ -85,8 +92,9 @@ async function loadShops() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load(opts?: { silent?: boolean }) {
+  const silent = !!opts?.silent
+  if (!silent) loading.value = true
   try {
     const res = await listConversations({
       shopId: shopId.value,
@@ -97,19 +105,27 @@ async function load() {
     total.value = merged.length
     const start = (page.value - 1) * pageSize.value
     list.value = merged.slice(start, start + pageSize.value)
+    notifyNewInbound(merged)
+    if (active.value) {
+      const next = findSameConversation(merged, active.value)
+      if (next) active.value = next
+    }
   } catch (e: any) {
-    ElMessage.error(e?.message || '加载失败')
+    if (!silent) ElMessage.error(e?.message || '加载失败')
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
-async function loadMessages() {
+async function loadMessages(opts?: { silent?: boolean }) {
   if (!active.value) {
     messages.value = []
     return
   }
-  msgLoading.value = true
+  const silent = !!opts?.silent
+  if (!silent) msgLoading.value = true
+  const prevCount = messages.value.length
+  const prevLast = messages.value[messages.value.length - 1]
   try {
     const ids = [...new Set([active.value.id, ...(active.value.mergedIds || [])])].filter(Boolean)
     const chunks = await Promise.all(
@@ -119,18 +135,71 @@ async function loadMessages() {
     msgTotal.value = merged.length
     const start = (msgPage.value - 1) * msgPageSize.value
     messages.value = merged.slice(start, start + msgPageSize.value)
+    const last = messages.value[messages.value.length - 1]
+    const grew = messages.value.length > prevCount || (last && last.id !== prevLast?.id)
+    if (grew && msgPage.value === 1) scrollMessagesToBottom()
   } catch (e: any) {
-    ElMessage.error(e?.message || '加载消息失败')
+    if (!silent) ElMessage.error(e?.message || '加载消息失败')
   } finally {
-    msgLoading.value = false
+    if (!silent) msgLoading.value = false
   }
+}
+
+function findSameConversation(rows: ConversationItem[], current: ConversationItem): ConversationItem | undefined {
+  const ids = new Set<number>([current.id, ...(current.mergedIds || [])].filter(Boolean))
+  const key = conversationGroupKey(current)
+  return (
+    rows.find((row) => ids.has(row.id) || (row.mergedIds || []).some((id) => ids.has(id)))
+    || rows.find((row) => conversationGroupKey(row) === key)
+  )
+}
+
+function notifyNewInbound(rows: ConversationItem[]) {
+  for (const row of rows) {
+    const key = conversationGroupKey(row)
+    const stamp = row.lastMessageAt || ''
+    const prev = seenStamp.get(key)
+    if (seenPrimed && stamp && stamp !== prev) {
+      const looking = !!active.value && conversationGroupKey(active.value) === key
+      if (!looking) {
+        ElNotification({
+          title: '新消息',
+          message: `${normalizeBuyerName(row.buyerName || row.platformBuyerId) || '买家'}：${row.lastMessagePreview || ''}`,
+          type: 'warning',
+          duration: 8000,
+        })
+        flashTitle()
+      }
+    }
+    if (stamp) seenStamp.set(key, stamp)
+  }
+  seenPrimed = true
+}
+
+function flashTitle() {
+  document.title = '【新消息】客服中心'
+  if (titleTimer) clearTimeout(titleTimer)
+  titleTimer = setTimeout(() => {
+    restoreTitle()
+  }, 15000)
+}
+
+function restoreTitle() {
+  document.title = defaultTitle
+}
+
+function scrollMessagesToBottom() {
+  void nextTick(() => {
+    const el = msgListEl.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
 }
 
 function selectConv(row: ConversationItem) {
   active.value = row
   msgPage.value = 1
   draft.value = ''
-  void loadMessages()
+  void loadMessages().then(() => scrollMessagesToBottom())
 }
 
 async function sendReply() {
@@ -142,7 +211,8 @@ async function sendReply() {
     draft.value = ''
     ElMessage.success('已排队，将由本机飞鸽发出')
     await loadMessages()
-    await load()
+    await load({ silent: true })
+    scrollMessagesToBottom()
   } catch (e: any) {
     ElMessage.error(e?.message || '发送失败')
   } finally {
@@ -150,11 +220,28 @@ async function sendReply() {
   }
 }
 
+async function pollTick() {
+  if (polling) return
+  polling = true
+  try {
+    const prevStamp = active.value?.lastMessageAt || ''
+    await load({ silent: true })
+    if (!active.value) return
+    const stamp = active.value.lastMessageAt || ''
+    if (stamp !== prevStamp || messages.value.length === 0) {
+      await loadMessages({ silent: true })
+    }
+  } finally {
+    polling = false
+  }
+}
+
 function startPoll() {
   stopPoll()
+  void pollTick()
   pollTimer = setInterval(() => {
-    if (active.value) void loadMessages()
-  }, 8000)
+    void pollTick()
+  }, 2000)
 }
 
 function stopPoll() {
@@ -177,18 +264,116 @@ function messageImageSrc(content: string | undefined): string {
   if (mdData?.[1]) return mdData[1].replace(/\s+/g, '')
   const mdHttp = raw.match(/!\[[^\]]*\]\(\s*(https?:\/\/[^)\s]+)\)/)
   if (mdHttp?.[1]) return mdHttp[1]
+  const embedded = raw.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+/)
+  if (embedded?.[0]) return embedded[0].replace(/\s+/g, '').replace(/\)+$/, '')
   if (raw.startsWith('data:image/')) return raw.replace(/\s+/g, '')
   if (/^https?:\/\//i.test(raw) && /(image|\.png|\.jpe?g|\.gif|\.webp)/i.test(raw)) return raw
   return ''
 }
 
+const previewSrc = ref('')
+const previewBusy = ref('')
+const renderedMessages = computed(() =>
+  messages.value.map((m) => ({ message: m, imageSrc: messageImageSrc(m.content) })),
+)
+
+function openPreview(src: string) {
+  if (!src) return
+  previewSrc.value = src
+}
+
+function closePreview() {
+  previewSrc.value = ''
+  previewBusy.value = ''
+}
+
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && previewSrc.value) {
+    closePreview()
+  }
+}
+
+function mimeExt(mime: string): string {
+  const t = (mime || '').toLowerCase()
+  if (t.includes('png')) return 'png'
+  if (t.includes('webp')) return 'webp'
+  if (t.includes('gif')) return 'gif'
+  return 'jpg'
+}
+
+async function srcToBlob(src: string): Promise<Blob> {
+  const res = await fetch(src)
+  if (!res.ok) throw new Error('读取图片失败')
+  return res.blob()
+}
+
+async function blobToPng(blob: Blob): Promise<Blob> {
+  if ((blob.type || '').toLowerCase() === 'image/png') return blob
+  const bmp = await createImageBitmap(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = bmp.width
+  canvas.height = bmp.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('无法复制图片')
+  ctx.drawImage(bmp, 0, 0)
+  bmp.close()
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob((out) => (out ? resolve(out) : reject(new Error('无法复制图片'))), 'image/png')
+  })
+}
+
+async function copyImage(src: string) {
+  if (!src || previewBusy.value) return
+  previewBusy.value = 'copy'
+  try {
+    const blob = await srcToBlob(src)
+    const png = await blobToPng(blob)
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+      throw new Error('当前浏览器不支持复制图片')
+    }
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+    ElMessage.success('图片已复制，可直接粘贴')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '复制失败')
+  } finally {
+    previewBusy.value = ''
+  }
+}
+
+async function saveImage(src: string) {
+  if (!src || previewBusy.value) return
+  previewBusy.value = 'save'
+  try {
+    const blob = await srcToBlob(src)
+    const ext = mimeExt(blob.type)
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `买家图片-${stamp}.${ext}`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    ElMessage.success('已开始保存')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    previewBusy.value = ''
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('focus', restoreTitle)
   await loadShops()
   await load()
   startPoll()
 })
 
-onUnmounted(stopPoll)
+onUnmounted(() => {
+  stopPoll()
+  window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('focus', restoreTitle)
+  restoreTitle()
+})
 </script>
 
 <template>
@@ -200,6 +385,7 @@ onUnmounted(stopPoll)
           <el-option v-for="s in shops" :key="s.id" :label="s.name" :value="s.id" />
         </el-select>
         <el-button @click="load">刷新</el-button>
+        <span class="sync-hint">自动同步中 · 约 2 秒</span>
       </div>
     </div>
 
@@ -210,6 +396,7 @@ onUnmounted(stopPoll)
           v-loading="loading"
           stripe
           highlight-current-row
+          row-key="id"
           height="100%"
           @row-click="selectConv"
         >
@@ -244,23 +431,49 @@ onUnmounted(stopPoll)
             <strong>{{ normalizeBuyerName(active.buyerName || active.platformBuyerId) || active.buyerName }}</strong>
             <span class="muted">{{ active.shopName || active.platformShopName || active.platformShopId }}</span>
           </div>
-          <div class="msg-list" v-loading="msgLoading">
+          <div class="msg-list" ref="msgListEl" v-loading="msgLoading">
             <div
-              v-for="m in messages"
-              :key="m.id"
+              v-for="row in renderedMessages"
+              :key="row.message.id"
               class="msg"
-              :class="m.direction === 'out' ? 'out' : 'in'"
+              :class="row.message.direction === 'out' ? 'out' : 'in'"
             >
               <div class="bubble">
-                <img
-                  v-if="messageImageSrc(m.content)"
-                  :src="messageImageSrc(m.content)"
-                  class="msg-img"
-                  alt="图片"
-                />
-                <template v-else>{{ m.content || '(空)' }}</template>
+                <div v-if="row.imageSrc" class="img-wrap">
+                  <img
+                    :src="row.imageSrc"
+                    class="msg-img"
+                    alt="图片"
+                    title="点击预览"
+                    @click="openPreview(row.imageSrc)"
+                  />
+                  <div class="img-actions">
+                    <el-button circle size="small" title="预览" @click.stop="openPreview(row.imageSrc)">
+                      <el-icon><ZoomIn /></el-icon>
+                    </el-button>
+                    <el-button
+                      circle
+                      size="small"
+                      title="复制"
+                      :loading="previewBusy === 'copy'"
+                      @click.stop="copyImage(row.imageSrc)"
+                    >
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                    <el-button
+                      circle
+                      size="small"
+                      title="保存"
+                      :loading="previewBusy === 'save'"
+                      @click.stop="saveImage(row.imageSrc)"
+                    >
+                      <el-icon><Download /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+                <template v-else>{{ row.message.content || '(空)' }}</template>
               </div>
-              <div class="meta">{{ m.direction }} · {{ m.sentAt }}</div>
+              <div class="meta">{{ row.message.direction }} · {{ row.message.sentAt }}</div>
             </div>
           </div>
           <div class="pager">
@@ -289,6 +502,23 @@ onUnmounted(stopPoll)
         </template>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="previewSrc" class="img-preview" @click.self="closePreview">
+        <div class="img-preview-bar">
+          <el-button :loading="previewBusy === 'copy'" @click="copyImage(previewSrc)">
+            <el-icon><CopyDocument /></el-icon>
+            复制
+          </el-button>
+          <el-button type="primary" :loading="previewBusy === 'save'" @click="saveImage(previewSrc)">
+            <el-icon><Download /></el-icon>
+            保存
+          </el-button>
+          <el-button :icon="Close" circle @click="closePreview" />
+        </div>
+        <img :src="previewSrc" alt="预览" class="img-preview-full" />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -303,6 +533,12 @@ onUnmounted(stopPoll)
 .filters {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+.sync-hint {
+  color: #909399;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .split {
   display: grid;
@@ -370,15 +606,61 @@ onUnmounted(stopPoll)
   word-break: break-word;
   text-align: left;
 }
+.img-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 240px;
+}
 .msg-img {
   display: block;
   max-width: 240px;
   max-height: 320px;
   border-radius: 6px;
+  cursor: zoom-in;
+}
+.img-actions {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  gap: 4px;
+}
+@media (hover: hover) {
+  .img-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .img-wrap:hover .img-actions {
+    opacity: 1;
+  }
 }
 .bubble:has(.msg-img) {
   padding: 4px;
   background: transparent;
+}
+.img-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 4100;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+}
+.img-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.img-preview-full {
+  max-width: 92vw;
+  max-height: calc(100vh - 96px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: #111;
 }
 .msg.out .bubble {
   background: #ecf5ff;

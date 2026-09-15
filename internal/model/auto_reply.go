@@ -33,7 +33,7 @@ type CsOutboundMessage struct {
 	RuleID               uint64     `json:"ruleId"`
 	TriggerPlatformMsgID string     `gorm:"size:128;index" json:"triggerPlatformMessageId"`
 	Status               string     `gorm:"size:16;not null;default:pending;index" json:"status"`
-	Error                string     `gorm:"size:512" json:"error"`
+	Error                string     `gorm:"type:text" json:"error"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 	SentAt               *time.Time `json:"sentAt"`
