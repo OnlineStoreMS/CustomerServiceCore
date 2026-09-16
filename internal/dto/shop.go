@@ -157,3 +157,18 @@ type PluginOutboundAckInput struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
 }
+
+type LlmSettingItem struct {
+	Configured  bool   `json:"configured"`
+	Enabled     bool   `json:"enabled"`
+	StyleHint   string `json:"styleHint"`
+	CooldownSec int    `json:"cooldownSec"`
+	Model       string `json:"model"`
+	MaxChars    int    `json:"maxChars"`
+}
+
+type LlmSettingInput struct {
+	Enabled     *bool  `json:"enabled"`
+	StyleHint   string `json:"styleHint"`
+	CooldownSec *int   `json:"cooldownSec"`
+}

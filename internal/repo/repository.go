@@ -8,6 +8,7 @@ type Repos struct {
 	Message      *MessageRepo
 	AutoReply    *AutoReplyRepo
 	Outbound     *OutboundRepo
+	LlmSetting   *LlmSettingRepo
 }
 
 func New(db *gorm.DB) *Repos {
@@ -17,6 +18,7 @@ func New(db *gorm.DB) *Repos {
 		Message:      NewMessageRepo(db),
 		AutoReply:    NewAutoReplyRepo(db),
 		Outbound:     NewOutboundRepo(db),
+		LlmSetting:   NewLlmSettingRepo(db),
 	}
 }
 

@@ -45,3 +45,20 @@ export async function deleteAutoReplyRule(id: number) {
 export async function seedAutoReplyPresets() {
   return unwrap<AutoReplyRuleItem[]>(await client.post('/auto-reply-rules/presets'))
 }
+
+export interface LlmSetting {
+  configured: boolean
+  enabled: boolean
+  styleHint: string
+  cooldownSec: number
+  model: string
+  maxChars: number
+}
+
+export async function getLlmSetting() {
+  return unwrap<LlmSetting>(await client.get('/llm-settings'))
+}
+
+export async function saveLlmSetting(data: { enabled?: boolean; styleHint?: string; cooldownSec?: number }) {
+  return unwrap<LlmSetting>(await client.patch('/llm-settings', data))
+}

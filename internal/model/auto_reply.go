@@ -40,3 +40,15 @@ type CsOutboundMessage struct {
 }
 
 func (CsOutboundMessage) TableName() string { return "cs_outbound_messages" }
+
+type CsLlmSetting struct {
+	ID          uint64    `gorm:"primaryKey" json:"id"`
+	TenantID    uint64    `gorm:"not null;uniqueIndex" json:"tenantId"`
+	Enabled     bool      `gorm:"not null;default:false" json:"enabled"`
+	StyleHint   string    `gorm:"size:256" json:"styleHint"`
+	CooldownSec int       `gorm:"not null;default:25" json:"cooldownSec"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+func (CsLlmSetting) TableName() string { return "cs_llm_settings" }

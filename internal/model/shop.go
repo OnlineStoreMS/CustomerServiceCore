@@ -20,6 +20,7 @@ const (
 
 	ReplySourceManual = "manual"
 	ReplySourceAuto   = "auto_reply"
+	ReplySourceLlm    = "llm"
 
 	MatchExact    = "exact"
 	MatchContains = "contains"

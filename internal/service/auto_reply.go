@@ -329,25 +329,25 @@ func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversat
 		return
 	}
 	rules, err := s.rules().ListEnabledForShop(shop.ID)
-	if err != nil || len(rules) == 0 {
-		return
-	}
-	for i := range rules {
-		rule := &rules[i]
-		if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
-			continue
-		}
-		cool := time.Duration(rule.CooldownSec) * time.Second
-		if cool <= 0 {
-			cool = 45 * time.Second
-		}
-		recent, err := s.outbound().HasRecentAuto(conv.ID, time.Now().Add(-cool))
-		if err != nil || recent {
+	if err == nil {
+		for i := range rules {
+			rule := &rules[i]
+			if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
+				continue
+			}
+			cool := time.Duration(rule.CooldownSec) * time.Second
+			if cool <= 0 {
+				cool = 45 * time.Second
+			}
+			recent, err := s.outbound().HasRecentAuto(conv.ID, time.Now().Add(-cool))
+			if err != nil || recent {
+				return
+			}
+			_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)
 			return
 		}
-		_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)
-		return
 	}
+	s.maybeLlmReply(shop, conv, inbound)
 }
 
 func (s *ShopService) ClaimOutbound(shop *model.CsShop, limit int) ([]dto.PluginOutboundItem, error) {

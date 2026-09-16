@@ -5,15 +5,20 @@ import { listShops, type ShopItem } from '../api/shops'
 import {
   createAutoReplyRule,
   deleteAutoReplyRule,
+  getLlmSetting,
   listAutoReplyRules,
+  saveLlmSetting,
   seedAutoReplyPresets,
   updateAutoReplyRule,
   type AutoReplyRuleItem,
+  type LlmSetting,
 } from '../api/autoReply'
 
 const loading = ref(false)
 const list = ref<AutoReplyRuleItem[]>([])
 const shops = ref<ShopItem[]>([])
+const llm = ref<LlmSetting | null>(null)
+const llmSaving = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
@@ -33,6 +38,7 @@ async function load() {
   try {
     shops.value = (await listShops()) || []
     list.value = (await listAutoReplyRules()) || []
+    llm.value = await getLlmSetting()
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败')
   } finally {
@@ -130,6 +136,23 @@ async function onSeed() {
   }
 }
 
+async function saveLlm() {
+  if (!llm.value) return
+  llmSaving.value = true
+  try {
+    llm.value = await saveLlmSetting({
+      enabled: llm.value.enabled,
+      styleHint: llm.value.styleHint,
+      cooldownSec: llm.value.cooldownSec,
+    })
+    ElMessage.success('已保存 DeepSeek 设置')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    llmSaving.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -139,7 +162,7 @@ onMounted(load)
       <div>
         <h2>自动回复</h2>
         <p class="hint">
-          买家在飞鸽发送「好的 / 谢谢」这类短句时，云端按规则排队回复，本机 WindowsAgent 在 30 秒内发到飞鸽，避免超时未回。
+          寒暄短句走关键词规则秒回。没匹配上的问句可交给 DeepSeek，云端会压成一句口语再排队，本机 WindowsAgent 发到飞鸽。
         </p>
       </div>
       <div class="actions">
@@ -148,6 +171,44 @@ onMounted(load)
         <el-button type="primary" @click="openCreate">新建规则</el-button>
       </div>
     </div>
+
+    <el-card v-if="llm" class="llm-card" shadow="never">
+      <div class="llm-row">
+        <div>
+          <div class="llm-title">DeepSeek 简短问答</div>
+          <p class="hint">
+            关键词没中时才调用。回复限制约 {{ llm.maxChars }} 字，会去掉「您好 / 希望对您有帮助」这类 AI 腔。
+            <span v-if="!llm.configured">当前云端未配置 API Key，开关打开也不会发。</span>
+          </p>
+        </div>
+        <el-switch
+          v-model="llm.enabled"
+          :disabled="!llm.configured"
+          active-text="启用"
+          @change="saveLlm"
+        />
+      </div>
+      <el-form label-width="110px" class="llm-form">
+        <el-form-item label="口吻补充">
+          <el-input
+            v-model="llm.styleHint"
+            placeholder="例如：别叫亲，像杭州本地客服那样说话"
+            maxlength="80"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="冷却秒数">
+          <el-input-number v-model="llm.cooldownSec" :min="10" :max="180" />
+          <span class="muted">同一会话间隔内不连回</span>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="llmSaving" :disabled="!llm.configured" @click="saveLlm">
+            保存模型设置
+          </el-button>
+          <span class="muted">模型 {{ llm.model }}</span>
+        </el-form-item>
+      </el-form>
+    </el-card>
 
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="name" label="名称" min-width="120" />
@@ -243,5 +304,21 @@ onMounted(load)
   margin-left: 8px;
   color: #909399;
   font-size: 12px;
+}
+.llm-card {
+  margin-bottom: 16px;
+}
+.llm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.llm-title {
+  font-weight: 600;
+}
+.llm-form {
+  max-width: 640px;
 }
 </style>

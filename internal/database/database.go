@@ -42,5 +42,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.CsMessage{},
 		&model.CsAutoReplyRule{},
 		&model.CsOutboundMessage{},
+		&model.CsLlmSetting{},
 	)
 }

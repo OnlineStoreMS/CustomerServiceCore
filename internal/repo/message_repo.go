@@ -22,6 +22,25 @@ func (r *MessageRepo) ForTenant(tenantID uint64) *MessageRepo {
 	return &MessageRepo{db: r.db, tenantID: NormalizeTenantID(tenantID)}
 }
 
+func (r *MessageRepo) ListRecentByConversation(conversationID uint64, limit int) ([]model.CsMessage, error) {
+	if limit <= 0 {
+		limit = 6
+	}
+	var list []model.CsMessage
+	err := r.db.Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id = ?", conversationID).
+		Order("id DESC").
+		Limit(limit).
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
+	return list, nil
+}
+
 func (r *MessageRepo) ListByConversation(conversationID uint64, page, pageSize int) ([]model.CsMessage, int64, error) {
 	q := r.db.Model(&model.CsMessage{}).
 		Scopes(scopeTenant(r.tenantID)).

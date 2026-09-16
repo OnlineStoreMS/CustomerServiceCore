@@ -56,8 +56,8 @@ func (r *OutboundRepo) HasRecentAuto(conversationID uint64, since time.Time) (bo
 	var n int64
 	err := r.db.Model(&model.CsOutboundMessage{}).
 		Scopes(scopeTenant(r.tenantID)).
-		Where("conversation_id = ? AND source = ? AND created_at >= ? AND status <> ?",
-			conversationID, model.ReplySourceAuto, since, model.OutboundFailed).
+		Where("conversation_id = ? AND source IN ? AND created_at >= ? AND status <> ?",
+			conversationID, []string{model.ReplySourceAuto, model.ReplySourceLlm}, since, model.OutboundFailed).
 		Count(&n).Error
 	return n > 0, err
 }

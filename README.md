@@ -25,7 +25,7 @@ cd web && npm install && npm run dev
 - `POST /api/v1/plugin/bind` — body `{ "bindCode": "..." }`
 - `POST /api/v1/plugin/heartbeat` — headers `X-Plugin-Key` / `X-Plugin-Secret`
 - `POST /api/v1/plugin/messages` — batch upsert messages (idempotent on `platformMessageId`)
-- `POST /api/v1/plugin/outbound/claim` — claim pending cloud/auto replies for Feige send
+- `POST /api/v1/plugin/outbound/claim` — claim pending cloud/auto/llm replies for Feige send
 - `POST /api/v1/plugin/outbound/:id/ack` — body `{ "ok": true }`
 
 Heartbeat returns `{ monitorEnabled, shopName, platform, platformShopId, pendingOutbound }`.
@@ -37,6 +37,15 @@ JWT auth (same secret as UserCore). Routes under `/api/v1/admin`:
 - Shops: list/create/get/patch, rotate-bind-code, reset-plugin
 - Conversations: list, messages, **reply** (queues outbound for WindowsAgent)
 - Auto-reply rules: list/create/patch/delete, presets (寒暄模板)
+- LLM settings: `GET/PATCH /llm-settings`（DeepSeek 简短问答，关键词未命中才调用）
+
+## DeepSeek 自动回复
+
+配置 `llm.api_key` 或环境变量 `LLM_API_KEY` / `DEEPSEEK_API_KEY`。页面「自动回复」里打开开关。
+
+链路：买家进线 → 先走关键词规则 → 未命中再异步调 DeepSeek → 后处理压成 ≤40 字口语 → 排队给出站 → WindowsAgent 发到飞鸽。
+
+模型被要求用真人短句，禁止分点、Markdown、「您好 / 希望对您有帮助」等 AI 腔，也不编造单号库存。
 
 ## Docker
 

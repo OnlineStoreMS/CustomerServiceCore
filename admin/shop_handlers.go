@@ -241,6 +241,29 @@ func (h *AutoReplyHandler) Delete(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+func (h *AutoReplyHandler) GetLlm(c *gin.Context) {
+	item, err := h.ss(c).GetLlmSetting()
+	if err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
+func (h *AutoReplyHandler) SaveLlm(c *gin.Context) {
+	var in dto.LlmSettingInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := h.ss(c).SaveLlmSetting(&in)
+	if err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
 func (h *AutoReplyHandler) Seed(c *gin.Context) {
 	list, err := h.ss(c).SeedAutoReplyPresets()
 	if err != nil {

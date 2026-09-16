@@ -19,4 +19,6 @@ func RegisterRoutes(g *gin.RouterGroup, shopH *ShopHandler, convH *ConversationH
 	g.POST("/auto-reply-rules/presets", autoH.Seed)
 	g.PATCH("/auto-reply-rules/:id", autoH.Update)
 	g.DELETE("/auto-reply-rules/:id", autoH.Delete)
+	g.GET("/llm-settings", autoH.GetLlm)
+	g.PATCH("/llm-settings", autoH.SaveLlm)
 }

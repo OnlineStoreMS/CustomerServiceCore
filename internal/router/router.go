@@ -5,6 +5,7 @@ import (
 	adminmw "customerservicecore/admin/middleware"
 	"customerservicecore/internal/config"
 	jwtmgr "customerservicecore/internal/pkg/jwt"
+	"customerservicecore/internal/pkg/llm"
 	"customerservicecore/internal/pkg/pluginsecret"
 	"customerservicecore/internal/repo"
 	"customerservicecore/internal/service"
@@ -27,7 +28,15 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		panic(err)
 	}
 	repos := repo.New(db)
-	shopSvc := service.NewShopService(repos, codec)
+	llmClient := llm.New(
+		cfg.LLM.Enabled,
+		cfg.LLM.APIBase,
+		cfg.LLM.APIKey,
+		cfg.LLM.Model,
+		cfg.LLM.TimeoutSec,
+		cfg.LLM.MaxChars,
+	)
+	shopSvc := service.NewShopService(repos, codec, llmClient)
 	shopH := admin.NewShopHandler(shopSvc)
 	convH := admin.NewConversationHandler(shopSvc)
 	autoH := admin.NewAutoReplyHandler(shopSvc)

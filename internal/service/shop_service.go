@@ -15,6 +15,7 @@ import (
 
 	"customerservicecore/internal/dto"
 	"customerservicecore/internal/model"
+	"customerservicecore/internal/pkg/llm"
 	"customerservicecore/internal/pkg/pluginsecret"
 	"customerservicecore/internal/repo"
 
@@ -29,10 +30,11 @@ type ShopService struct {
 	repos  *repo.Repos
 	tenant uint64
 	codec  *pluginsecret.Codec
+	llm    *llm.Client
 }
 
-func NewShopService(repos *repo.Repos, codec *pluginsecret.Codec) *ShopService {
-	return &ShopService{repos: repos, codec: codec}
+func NewShopService(repos *repo.Repos, codec *pluginsecret.Codec, llmClient *llm.Client) *ShopService {
+	return &ShopService{repos: repos, codec: codec, llm: llmClient}
 }
 
 func (s *ShopService) ForTenant(tenantID uint64) *ShopService {
@@ -40,6 +42,7 @@ func (s *ShopService) ForTenant(tenantID uint64) *ShopService {
 		repos:  s.repos,
 		tenant: repo.NormalizeTenantID(tenantID),
 		codec:  s.codec,
+		llm:    s.llm,
 	}
 }
 

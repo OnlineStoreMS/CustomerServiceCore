@@ -14,3 +14,11 @@ cors:
     - http://localhost:5174
 apps:
   public_base_url: http://localhost:5193
+llm:
+  enabled: true
+  provider: deepseek
+  api_base: https://api.deepseek.com
+  api_key: "" # 或环境变量 LLM_API_KEY
+  model: deepseek-chat
+  timeout_sec: 8
+  max_chars: 40
