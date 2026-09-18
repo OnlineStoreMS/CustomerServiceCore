@@ -85,6 +85,14 @@ func (r *OutboundRepo) RecoverStale(shopID uint64, olderThan time.Duration) erro
 	return q.Update("status", model.OutboundPending).Error
 }
 
+func (r *OutboundRepo) DeleteByShop(shopID uint64) error {
+	q := r.db.Scopes(scopeTenant(r.tenantID)).Where("id > ?", 0)
+	if shopID > 0 {
+		q = q.Where("shop_id = ?", shopID)
+	}
+	return q.Delete(&model.CsOutboundMessage{}).Error
+}
+
 func (r *OutboundRepo) ClaimPending(shopID uint64, limit int) ([]model.CsOutboundMessage, error) {
 	if limit <= 0 {
 		limit = 3

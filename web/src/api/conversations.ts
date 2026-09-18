@@ -42,3 +42,7 @@ export async function replyConversation(conversationId: number, content: string)
     await client.post(`/conversations/${conversationId}/reply`, { content }),
   )
 }
+
+export async function clearAllConversations() {
+  return unwrap<{ ok: boolean }>(await client.delete('/conversations'))
+}

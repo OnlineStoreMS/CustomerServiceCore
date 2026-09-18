@@ -94,7 +94,11 @@ func (r *ConversationRepo) Delete(id uint64) error {
 
 func (r *ConversationRepo) DeleteByShop(shopID uint64) error {
 	if shopID == 0 {
-		return nil
+		return r.DeleteAll()
 	}
 	return r.db.Scopes(scopeTenant(r.tenantID)).Where("shop_id = ?", shopID).Delete(&model.CsConversation{}).Error
+}
+
+func (r *ConversationRepo) DeleteAll() error {
+	return r.db.Scopes(scopeTenant(r.tenantID)).Where("id > ?", 0).Delete(&model.CsConversation{}).Error
 }

@@ -140,6 +140,14 @@ func (h *ConversationHandler) List(c *gin.Context) {
 	response.OK(c, response.PageResult(list, total, page, pageSize))
 }
 
+func (h *ConversationHandler) ClearAll(c *gin.Context) {
+	if err := h.ss(c).ClearAllConversations(); err != nil {
+		response.Fail(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
 func (h *ConversationHandler) Messages(c *gin.Context) {
 	id, err := httputil.ParseID(c)
 	if err != nil {

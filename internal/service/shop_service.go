@@ -628,12 +628,25 @@ type mergedConversation struct {
 
 func (s *ShopService) clearShopConversations(shopID uint64) error {
 	if shopID == 0 {
-		return nil
+		return s.ClearAllConversations()
+	}
+	if err := s.outbound().DeleteByShop(shopID); err != nil {
+		return err
 	}
 	if err := s.messages().DeleteByShop(shopID); err != nil {
 		return err
 	}
 	return s.conversations().DeleteByShop(shopID)
+}
+
+func (s *ShopService) ClearAllConversations() error {
+	if err := s.outbound().DeleteByShop(0); err != nil {
+		return err
+	}
+	if err := s.messages().DeleteAll(); err != nil {
+		return err
+	}
+	return s.conversations().DeleteAll()
 }
 
 func (s *ShopService) ListConversations(shopID uint64, page, pageSize int) ([]dto.ConversationItem, int64, error) {

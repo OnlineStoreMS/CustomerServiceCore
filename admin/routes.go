@@ -11,6 +11,7 @@ func RegisterRoutes(g *gin.RouterGroup, shopH *ShopHandler, convH *ConversationH
 	g.POST("/shops/:id/reset-plugin", shopH.ResetPlugin)
 
 	g.GET("/conversations", convH.List)
+	g.DELETE("/conversations", convH.ClearAll)
 	g.GET("/conversations/:id/messages", convH.Messages)
 	g.POST("/conversations/:id/reply", convH.Reply)
 

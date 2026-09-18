@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElMessage, ElNotification } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { Close, CopyDocument, Download, ZoomIn } from '@element-plus/icons-vue'
 import { listShops, type ShopItem } from '../api/shops'
 import {
   listConversations,
   listMessages,
   replyConversation,
+  clearAllConversations,
   type ConversationItem,
   type MessageItem,
 } from '../api/conversations'
@@ -202,6 +203,32 @@ function selectConv(row: ConversationItem) {
   void loadMessages().then(() => scrollMessagesToBottom())
 }
 
+async function clearAll() {
+  try {
+    await ElMessageBox.confirm('将删除本租户下全部会话、消息和待发送回复，且无法恢复。', '清空全部会话', {
+      type: 'warning',
+      confirmButtonText: '清空',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  loading.value = true
+  try {
+    await clearAllConversations()
+    active.value = null
+    messages.value = []
+    list.value = []
+    total.value = 0
+    ElMessage.success('会话已清空')
+    await load({ silent: true })
+  } catch (e: any) {
+    ElMessage.error(e?.message || '清空失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 async function sendReply() {
   const text = draft.value.trim()
   if (!active.value || !text || sending.value) return
@@ -385,6 +412,7 @@ onUnmounted(() => {
           <el-option v-for="s in shops" :key="s.id" :label="s.name" :value="s.id" />
         </el-select>
         <el-button @click="load">刷新</el-button>
+        <el-button type="danger" plain @click="clearAll">清空全部</el-button>
         <span class="sync-hint">自动同步中 · 约 2 秒</span>
       </div>
     </div>

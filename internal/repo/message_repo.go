@@ -69,11 +69,18 @@ func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) 
 
 func (r *MessageRepo) DeleteByShop(shopID uint64) error {
 	if shopID == 0 {
-		return nil
+		return r.DeleteAll()
 	}
 	return r.db.Model(&model.CsMessage{}).
 		Scopes(scopeTenant(r.tenantID)).
 		Where("shop_id = ?", shopID).
+		Delete(&model.CsMessage{}).Error
+}
+
+func (r *MessageRepo) DeleteAll() error {
+	return r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("id > ?", 0).
 		Delete(&model.CsMessage{}).Error
 }
 
