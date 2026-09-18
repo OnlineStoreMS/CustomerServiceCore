@@ -191,7 +191,7 @@ onMounted(load)
     <el-card v-if="llm" class="llm-card" shadow="never">
       <div class="llm-row">
         <div>
-          <div class="llm-title">DeepSeek 简短问答</div>
+          <div class="llm-title">DeepSeek 简短问答（可调参）</div>
           <p class="hint">
             关键词没中时才调用。API Key 仍在服务器，这里只调回复行为。
             当前约 {{ llm.maxChars }} 字、模型 {{ llm.model }}。

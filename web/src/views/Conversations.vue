@@ -184,7 +184,7 @@ function notifyNewInbound(rows: ConversationItem[]) {
     if (seenPrimed && stamp && stamp !== prev) {
       const looking = !!active.value && conversationGroupKey(active.value) === key
       if (!looking) {
-        notifyPreview(normalizeBuyerName(row.buyerName || row.platformBuyerId), row.lastMessagePreview)
+        notifyPreview(normalizeBuyerName(row.buyerName || row.platformBuyerId), row.lastMessagePreview || '')
       }
     }
     if (stamp) seenStamp.set(key, stamp)
