@@ -158,6 +158,15 @@ type PluginOutboundAckInput struct {
 	Error string `json:"error"`
 }
 
+type PluginMonitorInput struct {
+	Enabled bool `json:"enabled"`
+}
+
+type PluginOkResult struct {
+	OK             bool `json:"ok"`
+	MonitorEnabled bool `json:"monitorEnabled,omitempty"`
+}
+
 type LlmSettingItem struct {
 	Configured  bool   `json:"configured"`
 	Enabled     bool   `json:"enabled"`

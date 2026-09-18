@@ -60,6 +60,8 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.POST("/messages", pluginH.Messages)
 	authed.POST("/outbound/claim", pluginH.ClaimOutbound)
 	authed.POST("/outbound/:id/ack", pluginH.AckOutbound)
+	authed.POST("/unbind", pluginH.Unbind)
+	authed.POST("/monitor", pluginH.SetMonitor)
 
 	return r
 }

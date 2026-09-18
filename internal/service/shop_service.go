@@ -197,7 +197,27 @@ func clearPluginCreds(shop *model.CsShop) {
 	shop.PluginSecretHash = ""
 	shop.PluginSecretEnc = ""
 	shop.PluginStatus = model.PluginUnbound
+	shop.MonitorEnabled = false
 	shop.LastSeenAt = nil
+}
+
+func (s *ShopService) UnbindPlugin(shop *model.CsShop) error {
+	if shop == nil {
+		return ErrPluginAuth
+	}
+	clearPluginCreds(shop)
+	return s.shops().Save(shop)
+}
+
+func (s *ShopService) SetPluginMonitor(shop *model.CsShop, enabled bool) (*dto.PluginOkResult, error) {
+	if shop == nil {
+		return nil, ErrPluginAuth
+	}
+	shop.MonitorEnabled = enabled
+	if err := s.shops().Save(shop); err != nil {
+		return nil, err
+	}
+	return &dto.PluginOkResult{OK: true, MonitorEnabled: shop.MonitorEnabled}, nil
 }
 
 func (s *ShopService) Bind(bindCode string) (*dto.PluginBindResult, error) {
@@ -254,6 +274,7 @@ func (s *ShopService) issuePluginCredentials(shop *model.CsShop) error {
 	shop.PluginSecretHash = hashSecret(secret)
 	shop.PluginSecretEnc = enc
 	shop.PluginStatus = model.PluginBound
+	shop.MonitorEnabled = true
 	shop.LastSeenAt = &now
 	return s.shops().Save(shop)
 }

@@ -70,7 +70,7 @@ async function toggleMonitor(row: ShopItem, val: boolean) {
   try {
     await updateShop(row.id, { monitorEnabled: val })
     row.monitorEnabled = val
-    ElMessage.success(val ? '已开启监控' : '已关闭监控')
+    ElMessage.success(val ? '已开启监控' : '已关闭监控，本机将自动关闭飞鸽窗口')
   } catch (e: any) {
     ElMessage.error(e?.message || '更新失败')
     await load()

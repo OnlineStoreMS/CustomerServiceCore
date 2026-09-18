@@ -121,6 +121,38 @@ func (h *Handler) AckOutbound(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+func (h *Handler) Unbind(c *gin.Context) {
+	shop := mustShop(c)
+	if shop == nil {
+		response.Fail(c, http.StatusUnauthorized, service.ErrPluginAuth.Error())
+		return
+	}
+	if err := h.svc.UnbindPlugin(shop); err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+func (h *Handler) SetMonitor(c *gin.Context) {
+	shop := mustShop(c)
+	if shop == nil {
+		response.Fail(c, http.StatusUnauthorized, service.ErrPluginAuth.Error())
+		return
+	}
+	var in dto.PluginMonitorInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := h.svc.SetPluginMonitor(shop, in.Enabled)
+	if err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
 func pluginCreds(c *gin.Context) (key, secret string) {
 	key = strings.TrimSpace(c.GetHeader("X-Plugin-Key"))
 	secret = strings.TrimSpace(c.GetHeader("X-Plugin-Secret"))
