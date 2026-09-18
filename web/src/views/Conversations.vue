@@ -33,6 +33,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let polling = false
 let seenPrimed = false
 const seenStamp = new Map<string, string>()
+const seenMsgIds = new Set<number>()
 const defaultTitle = typeof document !== 'undefined' ? document.title : '客服中心'
 let titleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -118,7 +119,7 @@ async function load(opts?: { silent?: boolean }) {
   }
 }
 
-async function loadMessages(opts?: { silent?: boolean }) {
+async function loadMessages(opts?: { silent?: boolean; notify?: boolean }) {
   if (!active.value) {
     messages.value = []
     return
@@ -138,6 +139,7 @@ async function loadMessages(opts?: { silent?: boolean }) {
     messages.value = merged.slice(start, start + msgPageSize.value)
     const last = messages.value[messages.value.length - 1]
     const grew = messages.value.length > prevCount || (last && last.id !== prevLast?.id)
+    notifyNewMessages(merged, opts?.notify === true && prevCount > 0)
     if (grew && msgPage.value === 1) scrollMessagesToBottom()
   } catch (e: any) {
     if (!silent) ElMessage.error(e?.message || '加载消息失败')
@@ -155,26 +157,49 @@ function findSameConversation(rows: ConversationItem[], current: ConversationIte
   )
 }
 
+function notifyPreview(name: string, preview: string, outbound?: boolean) {
+  const text = previewForNotify(preview)
+  if (!text) return
+  ElNotification({
+    title: '新消息',
+    message: `${name || '买家'}：${text}`,
+    type: outbound ? 'success' : 'warning',
+    duration: 8000,
+  })
+  flashTitle()
+}
+
+function previewForNotify(content: string | undefined): string {
+  const t = (content || '').replace(/\s+/g, ' ').trim()
+  if (!t) return ''
+  if (/^\[图片\]/.test(t) || t.startsWith('![') || t.startsWith('data:image')) return '[图片]'
+  return t.length > 80 ? `${t.slice(0, 80)}…` : t
+}
+
 function notifyNewInbound(rows: ConversationItem[]) {
   for (const row of rows) {
     const key = conversationGroupKey(row)
-    const stamp = row.lastMessageAt || ''
+    const stamp = `${row.lastMessageAt || ''}|${row.lastMessagePreview || ''}`
     const prev = seenStamp.get(key)
     if (seenPrimed && stamp && stamp !== prev) {
       const looking = !!active.value && conversationGroupKey(active.value) === key
       if (!looking) {
-        ElNotification({
-          title: '新消息',
-          message: `${normalizeBuyerName(row.buyerName || row.platformBuyerId) || '买家'}：${row.lastMessagePreview || ''}`,
-          type: 'warning',
-          duration: 8000,
-        })
-        flashTitle()
+        notifyPreview(normalizeBuyerName(row.buyerName || row.platformBuyerId), row.lastMessagePreview)
       }
     }
     if (stamp) seenStamp.set(key, stamp)
   }
   seenPrimed = true
+}
+
+function notifyNewMessages(rows: MessageItem[], enabled: boolean) {
+  const name = normalizeBuyerName(active.value?.buyerName || active.value?.platformBuyerId) || '买家'
+  for (const row of rows) {
+    if (seenMsgIds.has(row.id)) continue
+    seenMsgIds.add(row.id)
+    if (!enabled) continue
+    notifyPreview(name, row.content, row.direction === 'out')
+  }
 }
 
 function flashTitle() {
@@ -237,7 +262,7 @@ async function sendReply() {
     await replyConversation(active.value.id, text)
     draft.value = ''
     ElMessage.success('已排队，将由本机飞鸽发出')
-    await loadMessages()
+    await loadMessages({ notify: true })
     await load({ silent: true })
     scrollMessagesToBottom()
   } catch (e: any) {
@@ -256,7 +281,7 @@ async function pollTick() {
     if (!active.value) return
     const stamp = active.value.lastMessageAt || ''
     if (stamp !== prevStamp || messages.value.length === 0) {
-      await loadMessages({ silent: true })
+      await loadMessages({ silent: true, notify: true })
     }
   } finally {
     polling = false

@@ -59,9 +59,9 @@ func Load(path string) (*Config, error) {
 	v.AutomaticEnv()
 	v.SetDefault("llm.enabled", true)
 	v.SetDefault("llm.api_base", "https://api.deepseek.com")
-	v.SetDefault("llm.model", "deepseek-chat")
-	v.SetDefault("llm.timeout_sec", 8)
-	v.SetDefault("llm.max_chars", 40)
+	v.SetDefault("llm.model", "deepseek-flash")
+	v.SetDefault("llm.timeout_sec", 12)
+	v.SetDefault("llm.max_chars", 80)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -97,13 +97,13 @@ func Load(path string) (*Config, error) {
 		cfg.LLM.APIBase = "https://api.deepseek.com"
 	}
 	if cfg.LLM.Model == "" {
-		cfg.LLM.Model = "deepseek-chat"
+		cfg.LLM.Model = "deepseek-flash"
 	}
 	if cfg.LLM.TimeoutSec <= 0 {
-		cfg.LLM.TimeoutSec = 8
+		cfg.LLM.TimeoutSec = 12
 	}
 	if cfg.LLM.MaxChars <= 0 {
-		cfg.LLM.MaxChars = 40
+		cfg.LLM.MaxChars = 80
 	}
 	if len(cfg.CORS.AllowOrigins) == 0 {
 		cfg.CORS.AllowOrigins = []string{

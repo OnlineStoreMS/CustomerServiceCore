@@ -43,9 +43,9 @@ JWT auth (same secret as UserCore). Routes under `/api/v1/admin`:
 
 配置 `llm.api_key` 或环境变量 `LLM_API_KEY` / `DEEPSEEK_API_KEY`。页面「自动回复」里打开开关。
 
-链路：买家进线 → 先走关键词规则 → 未命中再异步调 DeepSeek → 后处理压成 ≤40 字口语 → 排队给出站 → WindowsAgent 发到飞鸽。
+链路：买家进线 → 先走关键词规则 → 未命中再异步调 DeepSeek → 结合最近对话直接答（规格对比不再连说稍等）→ 压成 ≤80 字口语 → 排队给出站 → WindowsAgent 发到飞鸽。
 
-模型被要求用真人短句，禁止分点、Markdown、「您好 / 希望对您有帮助」等 AI 腔，也不编造单号库存。
+模型被要求用真人短句，禁止分点、Markdown、「您好 / 希望对您有帮助」等 AI 腔。本店单号、库存、券后价、到货时间不编；商品型号对比要用对话上下文直接答。
 
 ## Docker
 

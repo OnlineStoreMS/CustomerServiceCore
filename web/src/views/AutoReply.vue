@@ -144,6 +144,17 @@ async function saveLlm() {
       enabled: llm.value.enabled,
       styleHint: llm.value.styleHint,
       cooldownSec: llm.value.cooldownSec,
+      systemPrompt: llm.value.systemPrompt,
+      model: llm.value.model,
+      maxChars: llm.value.maxChars,
+      maxTokens: llm.value.maxTokens,
+      timeoutSec: llm.value.timeoutSec,
+      temperature: llm.value.temperature,
+      thinkingEnabled: llm.value.thinkingEnabled,
+      historyCount: llm.value.historyCount,
+      inboundMaxChars: llm.value.inboundMaxChars,
+      useProductContext: llm.value.useProductContext,
+      retryStall: llm.value.retryStall,
     })
     ElMessage.success('已保存 DeepSeek 设置')
   } catch (e: any) {
@@ -151,6 +162,11 @@ async function saveLlm() {
   } finally {
     llmSaving.value = false
   }
+}
+
+function restoreDefaultPrompt() {
+  if (!llm.value) return
+  llm.value.systemPrompt = llm.value.defaultSystemPrompt || ''
 }
 
 onMounted(load)
@@ -177,7 +193,8 @@ onMounted(load)
         <div>
           <div class="llm-title">DeepSeek 简短问答</div>
           <p class="hint">
-            关键词没中时才调用。回复限制约 {{ llm.maxChars }} 字，会去掉「您好 / 希望对您有帮助」这类 AI 腔。
+            关键词没中时才调用。API Key 仍在服务器，这里只调回复行为。
+            当前约 {{ llm.maxChars }} 字、模型 {{ llm.model }}。
             <span v-if="!llm.configured">当前云端未配置 API Key，开关打开也不会发。</span>
           </p>
         </div>
@@ -188,24 +205,75 @@ onMounted(load)
           @change="saveLlm"
         />
       </div>
-      <el-form label-width="110px" class="llm-form">
+      <el-form label-width="130px" class="llm-form">
+        <el-form-item label="预设角色">
+          <el-input
+            v-model="llm.systemPrompt"
+            type="textarea"
+            :rows="8"
+            maxlength="4000"
+            show-word-limit
+            placeholder="告诉模型它是谁、怎么回买家"
+          />
+          <el-button class="prompt-reset" link type="primary" @click="restoreDefaultPrompt">
+            恢复默认提示词
+          </el-button>
+        </el-form-item>
         <el-form-item label="口吻补充">
           <el-input
             v-model="llm.styleHint"
             placeholder="例如：别叫亲，像杭州本地客服那样说话"
-            maxlength="80"
+            maxlength="120"
             show-word-limit
           />
         </el-form-item>
-        <el-form-item label="冷却秒数">
-          <el-input-number v-model="llm.cooldownSec" :min="10" :max="180" />
-          <span class="muted">同一会话间隔内不连回</span>
+        <el-form-item label="模型">
+          <el-select v-model="llm.model" filterable allow-create default-first-option style="width: 280px">
+            <el-option label="deepseek-flash（快、便宜）" value="deepseek-flash" />
+            <el-option label="deepseek-v4-pro" value="deepseek-v4-pro" />
+          </el-select>
+        </el-form-item>
+        <div class="llm-grid">
+          <el-form-item label="回复字数">
+            <el-input-number v-model="llm.maxChars" :min="20" :max="200" />
+          </el-form-item>
+          <el-form-item label="生成 Token">
+            <el-input-number v-model="llm.maxTokens" :min="32" :max="800" :step="10" />
+          </el-form-item>
+          <el-form-item label="超时秒数">
+            <el-input-number v-model="llm.timeoutSec" :min="5" :max="60" />
+          </el-form-item>
+          <el-form-item label="温度">
+            <el-input-number v-model="llm.temperature" :min="0.05" :max="1.2" :step="0.05" :precision="2" />
+          </el-form-item>
+          <el-form-item label="上下文条数">
+            <el-input-number v-model="llm.historyCount" :min="2" :max="30" />
+          </el-form-item>
+          <el-form-item label="买家字数上限">
+            <el-input-number v-model="llm.inboundMaxChars" :min="20" :max="200" />
+            <span class="muted">超过不走模型</span>
+          </el-form-item>
+          <el-form-item label="冷却秒数">
+            <el-input-number v-model="llm.cooldownSec" :min="10" :max="180" />
+            <span class="muted">同会话间隔内不连回</span>
+          </el-form-item>
+        </div>
+        <el-form-item label="思考模式">
+          <el-switch v-model="llm.thinkingEnabled" active-text="开" inactive-text="关" />
+          <span class="muted">客服短句建议关，开了更慢更贵</span>
+        </el-form-item>
+        <el-form-item label="咨询宝贝">
+          <el-switch v-model="llm.useProductContext" active-text="写入背景" />
+          <span class="muted">把飞鸽右侧咨询宝贝 / 浏览足迹给模型</span>
+        </el-form-item>
+        <el-form-item label="空话重试">
+          <el-switch v-model="llm.retryStall" active-text="重写稍等句" />
+          <span class="muted">「帮你看下 / 稍等」会再要一句实答</span>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="llmSaving" :disabled="!llm.configured" @click="saveLlm">
             保存模型设置
           </el-button>
-          <span class="muted">模型 {{ llm.model }}</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -293,7 +361,7 @@ onMounted(load)
   margin: 4px 0 0;
   color: #909399;
   font-size: 13px;
-  max-width: 640px;
+  max-width: 860px;
 }
 .actions {
   display: flex;
@@ -319,6 +387,13 @@ onMounted(load)
   font-weight: 600;
 }
 .llm-form {
-  max-width: 640px;
+  max-width: 920px;
+}
+.llm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+.prompt-reset {
+  margin-top: 4px;
 }
 </style>

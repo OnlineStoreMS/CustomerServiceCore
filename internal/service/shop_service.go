@@ -345,6 +345,9 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 	}
 	_ = svc.collapseDuplicateConversations(shop.ID)
 	accepted, skipped := 0, 0
+	if len(in.Messages) == 0 && len(in.ProductContext) == 0 {
+		return &dto.PluginMessagesResult{}, nil
+	}
 	for _, item := range in.Messages {
 		msgID := strings.TrimSpace(item.PlatformMessageID)
 		buyerID, buyerName, ok := normalizeBuyerIdentity(item.PlatformBuyerID, item.BuyerName)
@@ -406,7 +409,73 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 			svc.maybeAutoReply(shop, conv, msg)
 		}
 	}
+	svc.applyProductContext(shop, platform, platformShopID, in.ProductContext)
 	return &dto.PluginMessagesResult{Accepted: accepted, Skipped: skipped}, nil
+}
+
+func (s *ShopService) applyProductContext(shop *model.CsShop, platform, platformShopID string, items []dto.PluginProductContext) {
+	for _, item := range items {
+		text := formatProductContext(item)
+		if text == "" {
+			continue
+		}
+		buyerID, buyerName, ok := normalizeBuyerIdentity(item.PlatformBuyerID, item.BuyerName)
+		if !ok {
+			continue
+		}
+		conv, err := s.conversations().GetByBuyer(platform, platformShopID, buyerID)
+		if err != nil {
+			if existing := s.findConversationByNormalizedName(shop.ID, platform, platformShopID, buyerName); existing != nil {
+				conv = existing
+			} else {
+				continue
+			}
+		}
+		if conv == nil {
+			continue
+		}
+		if conv.ProductContext == text {
+			continue
+		}
+		conv.ProductContext = text
+		_ = s.conversations().Save(conv)
+	}
+}
+
+func formatProductContext(item dto.PluginProductContext) string {
+	clip := func(list []string, prefix string) string {
+		seen := map[string]struct{}{}
+		var parts []string
+		for _, raw := range list {
+			t := strings.TrimSpace(raw)
+			if t == "" {
+				continue
+			}
+			if utf8.RuneCountInString(t) > 60 {
+				t = string([]rune(t)[:60])
+			}
+			if _, ok := seen[t]; ok {
+				continue
+			}
+			seen[t] = struct{}{}
+			parts = append(parts, t)
+			if len(parts) >= 5 {
+				break
+			}
+		}
+		if len(parts) == 0 {
+			return ""
+		}
+		return prefix + strings.Join(parts, "；")
+	}
+	var lines []string
+	if s := clip(item.Consulted, "咨询宝贝："); s != "" {
+		lines = append(lines, s)
+	}
+	if s := clip(item.Browsed, "浏览足迹："); s != "" {
+		lines = append(lines, s)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *ShopService) ensureConversation(
@@ -572,6 +641,9 @@ func (s *ShopService) mergeConversationInto(dst, src *model.CsConversation) {
 	if src.LastMessageAt != nil && (dst.LastMessageAt == nil || src.LastMessageAt.After(*dst.LastMessageAt)) {
 		dst.LastMessageAt = src.LastMessageAt
 		dst.LastMessagePreview = src.LastMessagePreview
+	}
+	if dst.ProductContext == "" && src.ProductContext != "" {
+		dst.ProductContext = src.ProductContext
 	}
 	_ = s.conversations().Delete(src.ID)
 	_ = s.messages().DeduplicateConversation(dst.ID)

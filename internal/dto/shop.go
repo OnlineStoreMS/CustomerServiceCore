@@ -53,12 +53,20 @@ type PluginHeartbeatResult struct {
 }
 
 type PluginMessagesInput struct {
-	Platform         string              `json:"platform"`
-	PlatformShopID   string              `json:"platformShopId"`
-	PlatformShopName string              `json:"platformShopName"`
-	CurrentListEmpty bool                `json:"currentListEmpty"`
-	CurrentBuyers    []string            `json:"currentBuyers"`
-	Messages         []PluginMessageItem `json:"messages"`
+	Platform         string                 `json:"platform"`
+	PlatformShopID   string                 `json:"platformShopId"`
+	PlatformShopName string                 `json:"platformShopName"`
+	CurrentListEmpty bool                   `json:"currentListEmpty"`
+	CurrentBuyers    []string               `json:"currentBuyers"`
+	ProductContext   []PluginProductContext `json:"productContext"`
+	Messages         []PluginMessageItem    `json:"messages"`
+}
+
+type PluginProductContext struct {
+	PlatformBuyerID string   `json:"platformBuyerId"`
+	BuyerName       string   `json:"buyerName"`
+	Consulted       []string `json:"consulted"`
+	Browsed         []string `json:"browsed"`
 }
 
 type PluginMessageItem struct {
@@ -168,16 +176,37 @@ type PluginOkResult struct {
 }
 
 type LlmSettingItem struct {
-	Configured  bool   `json:"configured"`
-	Enabled     bool   `json:"enabled"`
-	StyleHint   string `json:"styleHint"`
-	CooldownSec int    `json:"cooldownSec"`
-	Model       string `json:"model"`
-	MaxChars    int    `json:"maxChars"`
+	Configured          bool    `json:"configured"`
+	Enabled             bool    `json:"enabled"`
+	StyleHint           string  `json:"styleHint"`
+	CooldownSec         int     `json:"cooldownSec"`
+	SystemPrompt        string  `json:"systemPrompt"`
+	DefaultSystemPrompt string  `json:"defaultSystemPrompt"`
+	Model               string  `json:"model"`
+	MaxChars            int     `json:"maxChars"`
+	MaxTokens           int     `json:"maxTokens"`
+	TimeoutSec          int     `json:"timeoutSec"`
+	Temperature         float64 `json:"temperature"`
+	ThinkingEnabled     bool    `json:"thinkingEnabled"`
+	HistoryCount        int     `json:"historyCount"`
+	InboundMaxChars     int     `json:"inboundMaxChars"`
+	UseProductContext   bool    `json:"useProductContext"`
+	RetryStall          bool    `json:"retryStall"`
 }
 
 type LlmSettingInput struct {
-	Enabled     *bool  `json:"enabled"`
-	StyleHint   string `json:"styleHint"`
-	CooldownSec *int   `json:"cooldownSec"`
+	Enabled           *bool    `json:"enabled"`
+	StyleHint         *string  `json:"styleHint"`
+	CooldownSec       *int     `json:"cooldownSec"`
+	SystemPrompt      *string  `json:"systemPrompt"`
+	Model             *string  `json:"model"`
+	MaxChars          *int     `json:"maxChars"`
+	MaxTokens         *int     `json:"maxTokens"`
+	TimeoutSec        *int     `json:"timeoutSec"`
+	Temperature       *float64 `json:"temperature"`
+	ThinkingEnabled   *bool    `json:"thinkingEnabled"`
+	HistoryCount      *int     `json:"historyCount"`
+	InboundMaxChars   *int     `json:"inboundMaxChars"`
+	UseProductContext *bool    `json:"useProductContext"`
+	RetryStall        *bool    `json:"retryStall"`
 }

@@ -58,6 +58,7 @@ type CsConversation struct {
 	PlatformConversationID string     `gorm:"size:128" json:"platformConversationId"`
 	LastMessageAt          *time.Time `json:"lastMessageAt"`
 	LastMessagePreview     string     `gorm:"size:512" json:"lastMessagePreview"`
+	ProductContext         string     `gorm:"type:text" json:"productContext"`
 	UnreadHint             int        `gorm:"not null;default:0" json:"unreadHint"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	UpdatedAt              time.Time  `json:"updatedAt"`

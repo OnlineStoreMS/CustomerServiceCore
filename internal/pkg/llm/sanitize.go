@@ -70,6 +70,34 @@ func HumanizeReply(raw string, maxChars int) string {
 	return s
 }
 
+func LooksLikeStall(s string) bool {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return false
+	}
+	return strings.Contains(t, "帮你看") || strings.Contains(t, "我去看") ||
+		strings.Contains(t, "稍等") || strings.Contains(t, "等一下") ||
+		strings.Contains(t, "对比下") || strings.Contains(t, "对比一下") ||
+		strings.Contains(t, "问一下") || strings.Contains(t, "看一下库存")
+}
+
+func stallAlreadySaid(transcript string) bool {
+	for _, line := range strings.Split(transcript, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "客服：") && LooksLikeStall(strings.TrimPrefix(line, "客服：")) {
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeProductQuestion(transcript string) bool {
+	t := transcript
+	return strings.Contains(t, "区别") || strings.Contains(t, "规格") ||
+		strings.Contains(t, "多少速") || strings.Contains(t, "适不适合") ||
+		strings.Contains(t, "哪个好") || strings.Contains(t, "差在")
+}
+
 func stripIgnoreCase(s, needle string) string {
 	ls, ln := strings.ToLower(s), strings.ToLower(needle)
 	idx := strings.Index(ls, ln)

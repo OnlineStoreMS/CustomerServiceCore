@@ -147,5 +147,11 @@ func isJunkMessageContent(s string) bool {
 	if strings.Contains(s, "用户超时未回复") || strings.Contains(s, "系统关闭会话") || strings.Contains(s, "商家配置发送") || strings.Contains(s, "人工客服欢迎语") {
 		return true
 	}
+	if s == "券后价" || s == "保障" || s == "优惠" || s == "物流" || s == "已售" || strings.HasPrefix(s, "已售") {
+		return true
+	}
+	if strings.Contains(s, "48小时内发货") || strings.Contains(s, "这款商品正在活动") {
+		return true
+	}
 	return junkPriceRe.MatchString(s)
 }

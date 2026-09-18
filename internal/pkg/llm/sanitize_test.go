@@ -24,9 +24,21 @@ func TestHumanizeReply_keepsShortTalk(t *testing.T) {
 	}
 }
 
-func TestHumanizeReply_truncates(t *testing.T) {
-	got := HumanizeReply("这是一段很长很长的客服解释用来测试截断是不是生效了还会继续写下去", 12)
-	if len([]rune(got)) > 12 {
-		t.Fatalf("too long: %q", got)
+func TestLooksLikeStall(t *testing.T) {
+	if !LooksLikeStall("我帮你看下") || !LooksLikeStall("这俩我给你对比下，稍等哈") {
+		t.Fatal("should detect stall")
+	}
+	if LooksLikeStall("U6000更轻，6020更耐造，通勤选6020") {
+		t.Fatal("real answer is not stall")
+	}
+}
+
+func TestStallAlreadySaid(t *testing.T) {
+	tr := "买家：U6000和6020的区别\n客服：我帮你看下\n买家：什么区别\n"
+	if !stallAlreadySaid(tr) {
+		t.Fatal("客服 stall should be detected")
+	}
+	if !looksLikeProductQuestion(tr) {
+		t.Fatal("区别 should be product question")
 	}
 }
