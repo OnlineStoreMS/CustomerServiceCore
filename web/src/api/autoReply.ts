@@ -51,14 +51,28 @@ export interface LlmSetting {
   enabled: boolean
   styleHint: string
   cooldownSec: number
+  systemPrompt: string
+  defaultSystemPrompt: string
   model: string
   maxChars: number
+  maxTokens: number
+  timeoutSec: number
+  temperature: number
+  thinkingEnabled: boolean
+  historyCount: number
+  inboundMaxChars: number
+  useProductContext: boolean
+  retryStall: boolean
 }
+
+export type LlmSettingInput = Partial<
+  Omit<LlmSetting, 'configured' | 'defaultSystemPrompt'>
+>
 
 export async function getLlmSetting() {
   return unwrap<LlmSetting>(await client.get('/llm-settings'))
 }
 
-export async function saveLlmSetting(data: { enabled?: boolean; styleHint?: string; cooldownSec?: number }) {
+export async function saveLlmSetting(data: LlmSettingInput) {
   return unwrap<LlmSetting>(await client.patch('/llm-settings', data))
 }
