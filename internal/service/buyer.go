@@ -153,5 +153,8 @@ func isJunkMessageContent(s string) bool {
 	if strings.Contains(s, "48小时内发货") || strings.Contains(s, "这款商品正在活动") {
 		return true
 	}
+	if strings.Contains(s, "哦～") && (strings.Contains(s, "换挡精准") || strings.Contains(s, "电变套件") || strings.Contains(s, "对应105")) {
+		return true
+	}
 	return junkPriceRe.MatchString(s)
 }

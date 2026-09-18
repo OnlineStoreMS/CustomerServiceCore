@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -11,6 +12,15 @@ import (
 	"customerservicecore/internal/model"
 	"customerservicecore/internal/pkg/llm"
 )
+
+var llmConvLocks sync.Map
+
+func lockLlmConv(id uint64) func() {
+	v, _ := llmConvLocks.LoadOrStore(id, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
 
 func (s *ShopService) GetLlmSetting() (*dto.LlmSettingItem, error) {
 	row, err := s.repos.LlmSetting.ForTenant(s.tenant).GetOrDefault()
@@ -223,17 +233,34 @@ func (s *ShopService) runLlmReply(tenantID uint64, shop *model.CsShop, conv *mod
 		}
 	}()
 	svc := s.ForTenant(tenantID)
+	unlock := lockLlmConv(conv.ID)
+	defer unlock()
 	exists, err := svc.outbound().ExistsTrigger(inbound.PlatformMessageID)
 	if err != nil || exists {
+		return
+	}
+	cool := 25
+	if setting != nil && setting.CooldownSec > 0 {
+		cool = setting.CooldownSec
+	}
+	blocked, err := svc.outbound().HasRecentAuto(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second))
+	if err != nil || blocked {
 		return
 	}
 	history := 10
 	if setting != nil && setting.HistoryCount > 0 {
 		history = setting.HistoryCount
 	}
-	recent, err := svc.messages().ListRecentByConversation(conv.ID, history)
+	recent, err := svc.messages().ListRecentByConversation(conv.ID, 40)
 	if err != nil {
 		return
+	}
+	if alreadyAnsweredSameInbound(recent, inbound) {
+		log.Printf("llm skip duplicate inbound shop=%s content=%s", shop.Name, strings.TrimSpace(inbound.Content))
+		return
+	}
+	if len(recent) > history {
+		recent = recent[len(recent)-history:]
 	}
 	var b strings.Builder
 	for i := range recent {
@@ -288,5 +315,49 @@ func (s *ShopService) runLlmReply(tenantID uint64, shop *model.CsShop, conv *mod
 	if err != nil || exists {
 		return
 	}
+	blocked, err = svc.outbound().HasRecentAuto(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second))
+	if err != nil || blocked {
+		return
+	}
+	if similarToRecentOutbound(recent, text) {
+		log.Printf("llm skip similar outbound shop=%s text=%s", shop.Name, text)
+		return
+	}
 	_, _, _ = svc.enqueueOutbound(shop, conv, text, model.ReplySourceLlm, 0, inbound.PlatformMessageID)
+}
+
+func alreadyAnsweredSameInbound(recent []model.CsMessage, inbound *model.CsMessage) bool {
+	if inbound == nil {
+		return false
+	}
+	compact := llm.CompactReply(inbound.Content)
+	if compact == "" {
+		return false
+	}
+	for i := range recent {
+		if inbound.ID != 0 && recent[i].ID == inbound.ID {
+			continue
+		}
+		if recent[i].Direction == model.DirectionIn && llm.CompactReply(recent[i].Content) == compact {
+			return true
+		}
+	}
+	return false
+}
+
+func similarToRecentOutbound(recent []model.CsMessage, text string) bool {
+	seen := 0
+	for i := len(recent) - 1; i >= 0; i-- {
+		if recent[i].Direction != model.DirectionOut {
+			continue
+		}
+		if llm.SimilarReply(recent[i].Content, text) {
+			return true
+		}
+		seen++
+		if seen >= 3 {
+			break
+		}
+	}
+	return false
 }

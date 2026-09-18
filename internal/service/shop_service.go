@@ -405,7 +405,7 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 		} else {
 			skipped++
 		}
-		if dir == model.DirectionIn {
+		if created && dir == model.DirectionIn {
 			svc.maybeAutoReply(shop, conv, msg)
 		}
 	}

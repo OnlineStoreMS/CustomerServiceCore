@@ -91,6 +91,76 @@ func stallAlreadySaid(transcript string) bool {
 	return false
 }
 
+var compactRe = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+func CompactReply(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return compactRe.ReplaceAllString(s, "")
+}
+
+func SimilarReply(a, b string) bool {
+	ca, cb := CompactReply(a), CompactReply(b)
+	if ca == "" || cb == "" {
+		return false
+	}
+	if ca == cb {
+		return true
+	}
+	ra, rb := []rune(ca), []rune(cb)
+	if len(ra) < 4 || len(rb) < 4 {
+		return false
+	}
+	if strings.Contains(ca, cb) || strings.Contains(cb, ca) {
+		return true
+	}
+	if commonPrefixRunes(ra, rb) >= 6 && looksLikeSameAsk(ca) && looksLikeSameAsk(cb) {
+		return true
+	}
+	return bigramDice(ra, rb) >= 0.62
+}
+
+func looksLikeSameAsk(s string) bool {
+	return strings.Contains(s, "哪") || strings.Contains(s, "什么") || strings.Contains(s, "吗") || strings.Contains(s, "区别")
+}
+
+func commonPrefixRunes(a, b []rune) int {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return i
+}
+
+func bigramDice(a, b []rune) float64 {
+	if len(a) < 2 || len(b) < 2 {
+		return 0
+	}
+	ma := map[string]int{}
+	totalA := 0
+	for i := 0; i < len(a)-1; i++ {
+		ma[string(a[i:i+2])]++
+		totalA++
+	}
+	inter := 0
+	totalB := 0
+	for i := 0; i < len(b)-1; i++ {
+		k := string(b[i : i+2])
+		totalB++
+		if ma[k] > 0 {
+			inter++
+			ma[k]--
+		}
+	}
+	if totalA+totalB == 0 {
+		return 0
+	}
+	return float64(2*inter) / float64(totalA+totalB)
+}
+
 func looksLikeProductQuestion(transcript string) bool {
 	t := transcript
 	return strings.Contains(t, "区别") || strings.Contains(t, "规格") ||
