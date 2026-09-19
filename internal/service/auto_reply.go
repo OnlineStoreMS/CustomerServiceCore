@@ -140,6 +140,7 @@ func (s *ShopService) CreateAutoReplyRule(in *dto.AutoReplyRuleInput) (*dto.Auto
 	if err := s.rules().Create(row); err != nil {
 		return nil, err
 	}
+	s.applyRuleToRecentInbound(row)
 	item := toAutoReplyItem(row)
 	return &item, nil
 }
@@ -162,6 +163,7 @@ func (s *ShopService) UpdateAutoReplyRule(id uint64, in *dto.AutoReplyRuleInput)
 	if err := s.rules().Save(next); err != nil {
 		return nil, err
 	}
+	s.applyRuleToRecentInbound(next)
 	item := toAutoReplyItem(next)
 	return &item, nil
 }
@@ -189,7 +191,7 @@ func (s *ShopService) SeedAutoReplyPresets() ([]dto.AutoReplyRuleItem, error) {
 			Name:        "寒暄收到",
 			Enabled:     true,
 			MatchMode:   model.MatchExact,
-			Keywords:    "好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,OK,好哒,好的亲",
+			Keywords:    "您好,你好,在吗,在的,好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,OK,好哒,好的亲",
 			ReplyText:   "好的亲，收到啦～有其他问题随时找我",
 			Priority:    10,
 			CooldownSec: 30,
@@ -346,7 +348,7 @@ func (s *ShopService) enqueueOutbound(
 	return row, msg, nil
 }
 
-func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversation, inbound *model.CsMessage) {
+func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversation, inbound *model.CsMessage, allowLLM bool) {
 	if inbound == nil || inbound.Direction != model.DirectionIn {
 		return
 	}
@@ -357,32 +359,75 @@ func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversat
 	if err != nil || exists {
 		return
 	}
-	rules, err := s.rules().ListEnabledForShop(shop.ID)
-	if err == nil {
-		matched := false
-		for i := range rules {
-			rule := &rules[i]
-			if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
-				continue
-			}
-			matched = true
-			cool := time.Duration(rule.CooldownSec) * time.Second
-			if cool <= 0 {
-				cool = 30 * time.Second
-			}
-			// 只看关键词自己的冷却，不被 DeepSeek 刚回过挡住。
-			recent, err := s.outbound().HasRecentSource(conv.ID, time.Now().Add(-cool), model.ReplySourceAuto)
-			if err != nil || recent {
-				continue
-			}
-			_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)
-			return
-		}
-		if matched {
-			return
-		}
+	if s.tryKeywordReply(shop, conv, inbound) {
+		return
 	}
-	s.maybeLlmReply(shop, conv, inbound)
+	if allowLLM {
+		s.maybeLlmReply(shop, conv, inbound)
+	}
+}
+
+func (s *ShopService) tryKeywordReply(shop *model.CsShop, conv *model.CsConversation, inbound *model.CsMessage) bool {
+	rules, err := s.rules().ListEnabledForShop(shop.ID)
+	if err != nil {
+		return false
+	}
+	matched := false
+	for i := range rules {
+		rule := &rules[i]
+		if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
+			continue
+		}
+		matched = true
+		cool := time.Duration(rule.CooldownSec) * time.Second
+		if cool <= 0 {
+			cool = 30 * time.Second
+		}
+		// 只看关键词自己的冷却，不被 DeepSeek 刚回过挡住。
+		recent, err := s.outbound().HasRecentSource(conv.ID, time.Now().Add(-cool), model.ReplySourceAuto)
+		if err != nil || recent {
+			continue
+		}
+		_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)
+		return true
+	}
+	return matched
+}
+
+func (s *ShopService) applyRuleToRecentInbound(rule *model.CsAutoReplyRule) {
+	if rule == nil || !rule.Enabled {
+		return
+	}
+	keywords := splitKeywords(rule.Keywords)
+	if len(keywords) == 0 {
+		return
+	}
+	list, err := s.messages().ListRecentInbound(time.Now().Add(-15*time.Minute), 40)
+	if err != nil {
+		return
+	}
+	for i := range list {
+		msg := &list[i]
+		if rule.ShopID != 0 && msg.ShopID != rule.ShopID {
+			continue
+		}
+		if !matchAutoReply(msg.Content, rule.MatchMode, keywords) {
+			continue
+		}
+		exists, err := s.outbound().ExistsTrigger(msg.PlatformMessageID)
+		if err != nil || exists {
+			continue
+		}
+		conv, err := s.conversations().Get(msg.ConversationID)
+		if err != nil || conv == nil {
+			continue
+		}
+		shop, err := s.shops().Get(msg.ShopID)
+		if err != nil || shop == nil {
+			continue
+		}
+		_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, msg.PlatformMessageID)
+	}
 }
 
 func (s *ShopService) ClaimOutbound(shop *model.CsShop, limit int) ([]dto.PluginOutboundItem, error) {

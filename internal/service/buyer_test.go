@@ -53,6 +53,13 @@ func TestMatchAutoReply_exactAndContains(t *testing.T) {
 	if matchAutoReply("这个飞轮好用吗", model.MatchExact, hi) {
 		t.Fatal("question containing 好 must not match sequence")
 	}
+	greet := splitKeywords("您好,你好,在吗,在的")
+	if !matchAutoReply("您好", model.MatchExact, greet) {
+		t.Fatal("exact 您好")
+	}
+	if !matchAutoReply("您好！", model.MatchExact, greet) {
+		t.Fatal("exact 您好 with punct")
+	}
 }
 
 func TestIsJunkMessageContent_feigeChrome(t *testing.T) {

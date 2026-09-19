@@ -405,8 +405,10 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 		} else {
 			skipped++
 		}
-		if created && dir == model.DirectionIn {
-			svc.maybeAutoReply(shop, conv, msg)
+		if dir == model.DirectionIn {
+			// 重复上报也再走关键词：已入库的「您好」加了模板后，飞鸽再刷到同一句也能补回。
+			// DeepSeek 只在新消息上跑，避免旧问句每 2 秒重打一轮。
+			svc.maybeAutoReply(shop, conv, msg, created)
 		}
 	}
 	svc.applyProductContext(shop, platform, platformShopID, in.ProductContext)
@@ -925,6 +927,12 @@ func parseSentAt(v any) time.Time {
 			return t
 		}
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t
+		}
+		if t, err := time.ParseInLocation("2006-01-02 15:04:05", s, time.Local); err == nil {
+			return t
+		}
+		if t, err := time.ParseInLocation("2006-01-02 15:04", s, time.Local); err == nil {
 			return t
 		}
 		if n, err := strconv.ParseInt(s, 10, 64); err == nil {

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"strings"
+	"time"
 
 	"customerservicecore/internal/model"
 
@@ -20,6 +21,19 @@ func NewMessageRepo(db *gorm.DB) *MessageRepo {
 
 func (r *MessageRepo) ForTenant(tenantID uint64) *MessageRepo {
 	return &MessageRepo{db: r.db, tenantID: NormalizeTenantID(tenantID)}
+}
+
+func (r *MessageRepo) ListRecentInbound(since time.Time, limit int) ([]model.CsMessage, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	var list []model.CsMessage
+	err := r.db.Scopes(scopeTenant(r.tenantID)).
+		Where("direction = ? AND (sent_at >= ? OR created_at >= ?)", model.DirectionIn, since, since).
+		Order("id DESC").
+		Limit(limit).
+		Find(&list).Error
+	return list, err
 }
 
 func (r *MessageRepo) ListRecentByConversation(conversationID uint64, limit int) ([]model.CsMessage, error) {
