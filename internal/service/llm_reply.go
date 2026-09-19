@@ -217,7 +217,7 @@ func (s *ShopService) maybeLlmReply(shop *model.CsShop, conv *model.CsConversati
 	if cool <= 0 {
 		cool = 25
 	}
-	recent, err := s.outbound().HasRecentAuto(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second))
+	recent, err := s.outbound().HasRecentSource(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second), model.ReplySourceLlm)
 	if err != nil || recent {
 		return
 	}
@@ -243,7 +243,7 @@ func (s *ShopService) runLlmReply(tenantID uint64, shop *model.CsShop, conv *mod
 	if setting != nil && setting.CooldownSec > 0 {
 		cool = setting.CooldownSec
 	}
-	blocked, err := svc.outbound().HasRecentAuto(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second))
+	blocked, err := svc.outbound().HasRecentSource(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second), model.ReplySourceLlm)
 	if err != nil || blocked {
 		return
 	}
@@ -315,7 +315,7 @@ func (s *ShopService) runLlmReply(tenantID uint64, shop *model.CsShop, conv *mod
 	if err != nil || exists {
 		return
 	}
-	blocked, err = svc.outbound().HasRecentAuto(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second))
+	blocked, err = svc.outbound().HasRecentSource(conv.ID, time.Now().Add(-time.Duration(cool)*time.Second), model.ReplySourceLlm)
 	if err != nil || blocked {
 		return
 	}

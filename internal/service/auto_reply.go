@@ -191,7 +191,7 @@ func (s *ShopService) SeedAutoReplyPresets() ([]dto.AutoReplyRuleItem, error) {
 			Name:        "寒暄收到",
 			Enabled:     true,
 			MatchMode:   model.MatchExact,
-			Keywords:    "您好,你好,在吗,在的,好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,OK,好哒,好的亲",
+			Keywords:    "您好,你好,在吗,在的,有人吗,好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,OK,好哒,好的亲",
 			ReplyText:   "好的亲，收到啦～有其他问题随时找我",
 			Priority:    10,
 			CooldownSec: 30,
