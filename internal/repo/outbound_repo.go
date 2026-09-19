@@ -53,11 +53,18 @@ func (r *OutboundRepo) CountPending(shopID uint64) (int64, error) {
 }
 
 func (r *OutboundRepo) HasRecentAuto(conversationID uint64, since time.Time) (bool, error) {
+	return r.HasRecentSource(conversationID, since, model.ReplySourceAuto, model.ReplySourceLlm)
+}
+
+func (r *OutboundRepo) HasRecentSource(conversationID uint64, since time.Time, sources ...string) (bool, error) {
+	if len(sources) == 0 {
+		return r.HasRecentAuto(conversationID, since)
+	}
 	var n int64
 	err := r.db.Model(&model.CsOutboundMessage{}).
 		Scopes(scopeTenant(r.tenantID)).
 		Where("conversation_id = ? AND source IN ? AND created_at >= ? AND status <> ?",
-			conversationID, []string{model.ReplySourceAuto, model.ReplySourceLlm}, since, model.OutboundFailed).
+			conversationID, sources, since, model.OutboundFailed).
 		Count(&n).Error
 	return n > 0, err
 }

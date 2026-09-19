@@ -40,6 +40,19 @@ func TestMatchAutoReply_exactAndContains(t *testing.T) {
 	if !matchAutoReply("好的 谢谢", model.MatchExact, splitKeywords("好的,好的谢谢,谢谢")) {
 		t.Fatal("exact 好的 谢谢 after normalize")
 	}
+	hi := splitKeywords("好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,好哒,好的亲")
+	if !matchAutoReply("好", model.MatchExact, hi) {
+		t.Fatal("exact 好")
+	}
+	if !matchAutoReply("收到", model.MatchExact, hi) {
+		t.Fatal("exact 收到")
+	}
+	if !matchAutoReply("好 收到", model.MatchExact, hi) {
+		t.Fatal("好 收到 should be keyword sequence")
+	}
+	if matchAutoReply("这个飞轮好用吗", model.MatchExact, hi) {
+		t.Fatal("question containing 好 must not match sequence")
+	}
 }
 
 func TestIsJunkMessageContent_feigeChrome(t *testing.T) {

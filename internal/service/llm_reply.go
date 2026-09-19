@@ -130,7 +130,7 @@ func (s *ShopService) fillLlmDefaults(row *model.CsLlmSetting) *model.CsLlmSetti
 		row.MaxTokens = 220
 	}
 	if row.TimeoutSec <= 0 {
-		row.TimeoutSec = 12
+		row.TimeoutSec = 20
 	}
 	if row.Temperature <= 0 {
 		row.Temperature = 0.35

@@ -30,7 +30,7 @@ const form = reactive({
   replyText: '',
   enabled: true,
   priority: 100,
-  cooldownSec: 45,
+  cooldownSec: 30,
 })
 
 async function load() {
@@ -55,7 +55,7 @@ function openCreate() {
   form.replyText = ''
   form.enabled = true
   form.priority = 100
-  form.cooldownSec = 45
+  form.cooldownSec = 30
   dialogVisible.value = true
 }
 
@@ -178,7 +178,7 @@ onMounted(load)
       <div>
         <h2>自动回复</h2>
         <p class="hint">
-          寒暄短句走关键词规则秒回。没匹配上的问句可交给 DeepSeek，云端会压成一句口语再排队，本机 WindowsAgent 发到飞鸽。
+          寒暄短句走关键词规则秒回，命中后应在 30 秒内发到飞鸽。DeepSeek 简短问答也尽量 30 秒内发出；接口本身慢了这轮就不强求。DeepSeek 刚回过也不会挡住「好 / 收到 / 再见」。没匹配上的问句才交给模型。
         </p>
       </div>
       <div class="actions">
@@ -242,6 +242,7 @@ onMounted(load)
           </el-form-item>
           <el-form-item label="超时秒数">
             <el-input-number v-model="llm.timeoutSec" :min="5" :max="60" />
+            <span class="muted">建议 20，整轮尽量 30 秒内发出</span>
           </el-form-item>
           <el-form-item label="温度">
             <el-input-number v-model="llm.temperature" :min="0.05" :max="1.2" :step="0.05" :precision="2" />

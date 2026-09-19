@@ -60,7 +60,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("llm.enabled", true)
 	v.SetDefault("llm.api_base", "https://api.deepseek.com")
 	v.SetDefault("llm.model", "deepseek-flash")
-	v.SetDefault("llm.timeout_sec", 12)
+	v.SetDefault("llm.timeout_sec", 20)
 	v.SetDefault("llm.max_chars", 80)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -100,7 +100,7 @@ func Load(path string) (*Config, error) {
 		cfg.LLM.Model = "deepseek-flash"
 	}
 	if cfg.LLM.TimeoutSec <= 0 {
-		cfg.LLM.TimeoutSec = 12
+		cfg.LLM.TimeoutSec = 20
 	}
 	if cfg.LLM.MaxChars <= 0 {
 		cfg.LLM.MaxChars = 80

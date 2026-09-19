@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -76,7 +77,35 @@ func matchAutoReply(content, matchMode string, keywords []string) bool {
 			}
 		}
 	}
+	if mode != model.MatchContains && matchKeywordSequence(got, keywords) {
+		return true
+	}
 	return false
+}
+
+func matchKeywordSequence(got string, keywords []string) bool {
+	if got == "" || len(keywords) == 0 {
+		return false
+	}
+	sorted := append([]string(nil), keywords...)
+	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
+	rest := got
+	used := 0
+	for rest != "" {
+		hit := ""
+		for _, kw := range sorted {
+			if kw != "" && strings.HasPrefix(rest, kw) {
+				hit = kw
+				break
+			}
+		}
+		if hit == "" {
+			return false
+		}
+		rest = rest[len(hit):]
+		used++
+	}
+	return used > 0
 }
 
 func (s *ShopService) ListAutoReplyRules() ([]dto.AutoReplyRuleItem, error) {
@@ -163,7 +192,7 @@ func (s *ShopService) SeedAutoReplyPresets() ([]dto.AutoReplyRuleItem, error) {
 			Keywords:    "好的,好的谢谢,好的呢,谢谢,谢谢老板,收到,嗯嗯,好,ok,OK,好哒,好的亲",
 			ReplyText:   "好的亲，收到啦～有其他问题随时找我",
 			Priority:    10,
-			CooldownSec: 45,
+			CooldownSec: 30,
 		},
 		{
 			Name:        "告别",
@@ -172,7 +201,7 @@ func (s *ShopService) SeedAutoReplyPresets() ([]dto.AutoReplyRuleItem, error) {
 			Keywords:    "再见,拜拜,拜,没事了",
 			ReplyText:   "好的，祝您生活愉快～",
 			Priority:    20,
-			CooldownSec: 45,
+			CooldownSec: 30,
 		},
 	}
 	for i := range presets {
@@ -232,7 +261,7 @@ func (s *ShopService) buildRule(in *dto.AutoReplyRuleInput, existing *model.CsAu
 	if in.CooldownSec != nil {
 		row.CooldownSec = *in.CooldownSec
 	} else if existing == nil {
-		row.CooldownSec = 45
+		row.CooldownSec = 30
 	}
 	if row.CooldownSec < 0 {
 		row.CooldownSec = 0
@@ -330,20 +359,26 @@ func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversat
 	}
 	rules, err := s.rules().ListEnabledForShop(shop.ID)
 	if err == nil {
+		matched := false
 		for i := range rules {
 			rule := &rules[i]
 			if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
 				continue
 			}
+			matched = true
 			cool := time.Duration(rule.CooldownSec) * time.Second
 			if cool <= 0 {
-				cool = 45 * time.Second
+				cool = 30 * time.Second
 			}
-			recent, err := s.outbound().HasRecentAuto(conv.ID, time.Now().Add(-cool))
+			// 只看关键词自己的冷却，不被 DeepSeek 刚回过挡住。
+			recent, err := s.outbound().HasRecentSource(conv.ID, time.Now().Add(-cool), model.ReplySourceAuto)
 			if err != nil || recent {
-				return
+				continue
 			}
 			_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)
+			return
+		}
+		if matched {
 			return
 		}
 	}

@@ -42,7 +42,7 @@ func New(enabled bool, apiBase, apiKey, model string, timeoutSec, maxChars int) 
 		model = "deepseek-flash"
 	}
 	if timeoutSec <= 0 {
-		timeoutSec = 12
+		timeoutSec = 20
 	}
 	if maxChars <= 0 {
 		maxChars = 80
@@ -55,6 +55,7 @@ func New(enabled bool, apiBase, apiKey, model string, timeoutSec, maxChars int) 
 		timeout:  time.Duration(timeoutSec) * time.Second,
 		maxChars: maxChars,
 		httpClient: &http.Client{
+			// 单次请求由 Reply 的 context 超时控制；这里只挡死挂。
 			Timeout: 60 * time.Second,
 		},
 	}
@@ -163,6 +164,10 @@ func (c *Client) Reply(ctx context.Context, opt ReplyOptions) (string, error) {
 		return "", err
 	}
 	if needAnswer && LooksLikeStall(text) {
+		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 8*time.Second {
+			// 剩余时间不够再打一轮，按用户要求不强求，把第一句发出去。
+			return text, nil
+		}
 		retry, retryErr := c.complete(ctx, sys, user+"\n上一句是空话，重写：用对话里的型号直接对比，给能发飞鸽的一句答案。", opt)
 		if retryErr == nil && retry != "" && !LooksLikeStall(retry) {
 			text = retry
