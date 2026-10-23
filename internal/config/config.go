@@ -15,6 +15,7 @@ type Config struct {
 	CORS     CORSConfig
 	Apps     AppsConfig
 	LLM      LLMConfig
+	AIModel  AIModelConfig `mapstructure:"aimodel"`
 }
 
 type ServerConfig struct {
@@ -42,6 +43,12 @@ type CORSConfig struct {
 	AllowOrigins []string `mapstructure:"allow_origins"`
 }
 
+type AIModelConfig struct {
+	APIBase       string `mapstructure:"api_base"`
+	InternalToken string `mapstructure:"internal_token"`
+	TimeoutSec    int    `mapstructure:"timeout_sec"`
+}
+
 type LLMConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	Provider   string `mapstructure:"provider"`
@@ -62,6 +69,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("llm.model", "deepseek-flash")
 	v.SetDefault("llm.timeout_sec", 20)
 	v.SetDefault("llm.max_chars", 80)
+	v.SetDefault("aimodel.timeout_sec", 90)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -86,6 +94,15 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Apps.PublicBaseURL == "" {
 		cfg.Apps.PublicBaseURL = "http://localhost:5193"
+	}
+	if cfg.AIModel.APIBase == "" {
+		cfg.AIModel.APIBase = os.Getenv("AIMODEL_API_BASE")
+	}
+	if cfg.AIModel.InternalToken == "" {
+		cfg.AIModel.InternalToken = os.Getenv("AIMODEL_INTERNAL_TOKEN")
+	}
+	if cfg.AIModel.TimeoutSec <= 0 {
+		cfg.AIModel.TimeoutSec = 90
 	}
 	if cfg.LLM.APIKey == "" {
 		cfg.LLM.APIKey = os.Getenv("LLM_API_KEY")

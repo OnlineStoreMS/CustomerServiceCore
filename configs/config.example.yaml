@@ -14,6 +14,10 @@ cors:
     - http://localhost:5174
 apps:
   public_base_url: http://localhost:5193
+aimodel:
+  api_base: http://127.0.0.1:8109
+  internal_token: "" # 与 AiModelCore auth.internal_token 相同
+  timeout_sec: 90
 llm:
   enabled: true
   provider: deepseek

@@ -81,6 +81,16 @@ func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) 
 	return tx.RowsAffected > 0, nil
 }
 
+func (r *MessageRepo) DeleteNonVision(conversationID uint64) error {
+	if conversationID == 0 {
+		return nil
+	}
+	return r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id = ? AND platform_message_id NOT LIKE ?", conversationID, "vis:%").
+		Delete(&model.CsMessage{}).Error
+}
+
 func (r *MessageRepo) DeleteByShop(shopID uint64) error {
 	if shopID == 0 {
 		return r.DeleteAll()

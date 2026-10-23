@@ -15,6 +15,7 @@ import (
 
 	"customerservicecore/internal/dto"
 	"customerservicecore/internal/model"
+	"customerservicecore/internal/pkg/aimodel"
 	"customerservicecore/internal/pkg/llm"
 	"customerservicecore/internal/pkg/pluginsecret"
 	"customerservicecore/internal/repo"
@@ -27,22 +28,24 @@ var platformLabels = map[string]string{
 }
 
 type ShopService struct {
-	repos  *repo.Repos
-	tenant uint64
-	codec  *pluginsecret.Codec
-	llm    *llm.Client
+	repos   *repo.Repos
+	tenant  uint64
+	codec   *pluginsecret.Codec
+	llm     *llm.Client
+	aimodel *aimodel.Client
 }
 
-func NewShopService(repos *repo.Repos, codec *pluginsecret.Codec, llmClient *llm.Client) *ShopService {
-	return &ShopService{repos: repos, codec: codec, llm: llmClient}
+func NewShopService(repos *repo.Repos, codec *pluginsecret.Codec, llmClient *llm.Client, ai *aimodel.Client) *ShopService {
+	return &ShopService{repos: repos, codec: codec, llm: llmClient, aimodel: ai}
 }
 
 func (s *ShopService) ForTenant(tenantID uint64) *ShopService {
 	return &ShopService{
-		repos:  s.repos,
-		tenant: repo.NormalizeTenantID(tenantID),
-		codec:  s.codec,
-		llm:    s.llm,
+		repos:   s.repos,
+		tenant:  repo.NormalizeTenantID(tenantID),
+		codec:   s.codec,
+		llm:     s.llm,
+		aimodel: s.aimodel,
 	}
 }
 

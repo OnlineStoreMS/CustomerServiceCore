@@ -4,6 +4,7 @@ import (
 	"customerservicecore/admin"
 	adminmw "customerservicecore/admin/middleware"
 	"customerservicecore/internal/config"
+	"customerservicecore/internal/pkg/aimodel"
 	jwtmgr "customerservicecore/internal/pkg/jwt"
 	"customerservicecore/internal/pkg/llm"
 	"customerservicecore/internal/pkg/pluginsecret"
@@ -36,7 +37,8 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		cfg.LLM.TimeoutSec,
 		cfg.LLM.MaxChars,
 	)
-	shopSvc := service.NewShopService(repos, codec, llmClient)
+	aiClient := aimodel.NewClient(cfg.AIModel.APIBase, cfg.AIModel.InternalToken, cfg.AIModel.TimeoutSec)
+	shopSvc := service.NewShopService(repos, codec, llmClient, aiClient)
 	shopH := admin.NewShopHandler(shopSvc)
 	convH := admin.NewConversationHandler(shopSvc)
 	autoH := admin.NewAutoReplyHandler(shopSvc)
@@ -58,6 +60,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.Use(pluginH.AuthRequired())
 	authed.POST("/heartbeat", pluginH.Heartbeat)
 	authed.POST("/messages", pluginH.Messages)
+	authed.POST("/vision", pluginH.Vision)
 	authed.POST("/outbound/claim", pluginH.ClaimOutbound)
 	authed.POST("/outbound/:id/ack", pluginH.AckOutbound)
 	authed.POST("/unbind", pluginH.Unbind)

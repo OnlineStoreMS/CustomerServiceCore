@@ -85,6 +85,24 @@ type PluginMessagesResult struct {
 	Skipped  int `json:"skipped"`
 }
 
+type PluginVisionInput struct {
+	Platform         string `json:"platform"`
+	PlatformShopID   string `json:"platformShopId"`
+	PlatformShopName string `json:"platformShopName"`
+	BuyerName        string `json:"buyerName"`
+	ImageBase64      string `json:"imageBase64"`
+	Baseline         bool   `json:"baseline"`
+}
+
+type PluginVisionResult struct {
+	Accepted int    `json:"accepted"`
+	Skipped  int    `json:"skipped"`
+	Visible  int    `json:"visible"`
+	Model    string `json:"model"`
+	Aligned  bool   `json:"aligned"`
+	Inbound  int    `json:"inbound"`
+}
+
 type ConversationItem struct {
 	ID                     uint64   `json:"id"`
 	ShopID                 uint64   `json:"shopId"`
