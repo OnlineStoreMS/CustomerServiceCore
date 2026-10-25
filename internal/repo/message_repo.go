@@ -69,6 +69,16 @@ func (r *MessageRepo) ListByConversation(conversationID uint64, page, pageSize i
 	return list, total, err
 }
 
+func (r *MessageRepo) UpdateContent(platformMessageID, content string) error {
+	if platformMessageID == "" {
+		return nil
+	}
+	return r.db.Model(&model.CsMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("platform_message_id = ?", platformMessageID).
+		Update("content", content).Error
+}
+
 func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) {
 	msg.TenantID = r.tenantID
 	tx := r.db.Clauses(clause.OnConflict{

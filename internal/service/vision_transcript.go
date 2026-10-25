@@ -30,6 +30,7 @@ type visionLine struct {
 	Direction string
 	Text      string
 	ID        string
+	Update    bool
 }
 
 func (s *ShopService) IngestVision(ctx context.Context, shop *model.CsShop, in *dto.PluginVisionInput) (*dto.PluginVisionResult, error) {
@@ -53,7 +54,7 @@ func (s *ShopService) IngestVision(ctx context.Context, shop *model.CsShop, in *
 	if shop.PlatformShopID != "" && !strings.EqualFold(shop.PlatformShopID, platformShopID) {
 		return nil, fmt.Errorf("%w: 上报店铺与绑定店铺不一致", ErrBadRequest)
 	}
-	imageURL, err := visionDataURL(in.ImageBase64)
+	imageURLs, err := visionImageURLs(in)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrBadRequest, err.Error())
 	}
@@ -63,10 +64,10 @@ func (s *ShopService) IngestVision(ctx context.Context, shop *model.CsShop, in *
 	}
 
 	raw, modelName, err := s.aimodel.Vision(ctx, aimodel.VisionInput{
-		TenantID: shop.TenantID,
-		System:   visionSystemPrompt,
-		Prompt:   visionUserPrompt,
-		ImageURL: imageURL,
+		TenantID:  shop.TenantID,
+		System:    visionSystemPrompt,
+		Prompt:    visionUserPrompt,
+		ImageURLs: imageURLs,
 	})
 	if err != nil {
 		return nil, err
@@ -106,6 +107,17 @@ func (s *ShopService) IngestVision(ctx context.Context, shop *model.CsShop, in *
 	}
 	live := !in.Baseline && len(history) > 0
 	for i, line := range fresh {
+		if line.Update {
+			if err := svc.messages().UpdateContent(line.ID, line.Text); err != nil {
+				return nil, err
+			}
+			out.Accepted++
+			if conv.LastMessagePreview != "" && strings.HasPrefix(normVisionText(line.Text), normVisionText(conv.LastMessagePreview)) {
+				conv.LastMessagePreview = messagePreview(line.Text)
+				_ = svc.conversations().Save(conv)
+			}
+			continue
+		}
 		sentAt := now.Add(time.Duration(i) * time.Millisecond)
 		rawJSON, _ := json.Marshal(map[string]string{"source": "vision", "model": modelName})
 		msg := &model.CsMessage{
@@ -144,6 +156,28 @@ func (s *ShopService) IngestVision(ctx context.Context, shop *model.CsShop, in *
 		}
 	}
 	return out, nil
+}
+
+func visionImageURLs(in *dto.PluginVisionInput) ([]string, error) {
+	raws := in.Images
+	if len(raws) <= 1 {
+		raws = []string{in.ImageBase64}
+	}
+	if len(raws) > 8 {
+		raws = raws[:8]
+	}
+	urls := make([]string, 0, len(raws))
+	for _, raw := range raws {
+		url, err := visionDataURL(raw)
+		if err != nil {
+			return nil, err
+		}
+		urls = append(urls, url)
+	}
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("缺少聊天截图")
+	}
+	return urls, nil
 }
 
 func visionDataURL(raw string) (string, error) {
@@ -226,7 +260,7 @@ func AlignVision(history, visible []visionLine) ([]visionLine, bool) {
 		score := 0
 		h := start
 		for _, v := range visible {
-			if h < len(history) && history[h].Direction == v.Direction && sameVisionText(history[h].Text, v.Text) {
+			if h < len(history) && history[h].Direction == v.Direction && visionMatch(history[h].Text, v.Text) {
 				score++
 				h++
 			}
@@ -241,14 +275,43 @@ func AlignVision(history, visible []visionLine) ([]visionLine, bool) {
 	}
 	h := bestStart
 	var fresh []visionLine
+	var pending []visionLine
 	for _, v := range visible {
-		if h < len(history) && history[h].Direction == v.Direction && sameVisionText(history[h].Text, v.Text) {
+		if h < len(history) && history[h].Direction == v.Direction && visionMatch(history[h].Text, v.Text) {
+			if longer := longerVisionText(history[h].Text, v.Text); longer != "" {
+				fresh = append(fresh, visionLine{
+					Direction: history[h].Direction,
+					Text:      longer,
+					ID:        history[h].ID,
+					Update:    true,
+				})
+			}
 			h++
 			continue
 		}
-		fresh = append(fresh, v)
+		pending = append(pending, v)
 	}
-	return stampVisionIDs(history, fresh), true
+	return append(fresh, stampVisionIDs(history, pending)...), true
+}
+
+func visionMatch(have, seen string) bool {
+	h, s := normVisionText(have), normVisionText(seen)
+	if h == s {
+		return true
+	}
+	hr, sr := utf8.RuneCountInString(h), utf8.RuneCountInString(s)
+	if hr >= 4 && sr >= 4 && (strings.HasPrefix(s, h) || strings.HasPrefix(h, s)) {
+		return true
+	}
+	return sameVisionText(have, seen)
+}
+
+func longerVisionText(have, seen string) string {
+	h, s := normVisionText(have), normVisionText(seen)
+	if utf8.RuneCountInString(h) >= 4 && utf8.RuneCountInString(s) > utf8.RuneCountInString(h) && strings.HasPrefix(s, h) {
+		return seen
+	}
+	return ""
 }
 
 func stampVisionIDs(history, fresh []visionLine) []visionLine {

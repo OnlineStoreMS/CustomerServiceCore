@@ -34,10 +34,11 @@ func NewClient(baseURL, token string, timeoutSec int) *Client {
 }
 
 type VisionInput struct {
-	TenantID uint64
-	System   string
-	Prompt   string
-	ImageURL string
+	TenantID  uint64
+	System    string
+	Prompt    string
+	ImageURL  string
+	ImageURLs []string
 }
 
 func (c *Client) Vision(ctx context.Context, in VisionInput) (content, model string, err error) {
@@ -48,10 +49,18 @@ func (c *Client) Vision(ctx context.Context, in VisionInput) (content, model str
 	if err != nil {
 		return "", "", err
 	}
-	user, err := json.Marshal([]any{
-		map[string]string{"type": "text", "text": in.Prompt},
-		map[string]any{"type": "image_url", "image_url": map[string]string{"url": in.ImageURL}},
-	})
+	parts := []any{map[string]string{"type": "text", "text": in.Prompt}}
+	urls := in.ImageURLs
+	if len(urls) == 0 && strings.TrimSpace(in.ImageURL) != "" {
+		urls = []string{in.ImageURL}
+	}
+	for _, url := range urls {
+		if strings.TrimSpace(url) == "" {
+			continue
+		}
+		parts = append(parts, map[string]any{"type": "image_url", "image_url": map[string]string{"url": url}})
+	}
+	user, err := json.Marshal(parts)
 	if err != nil {
 		return "", "", err
 	}
@@ -63,7 +72,7 @@ func (c *Client) Vision(ctx context.Context, in VisionInput) (content, model str
 		"capability":   "vision",
 		"providerCode": "private",
 		"temperature":  temp,
-		"maxTokens":    2500,
+		"maxTokens":    4000,
 		"thinking":     thinking,
 		"messages": []map[string]any{
 			{"role": "system", "content": json.RawMessage(sys)},

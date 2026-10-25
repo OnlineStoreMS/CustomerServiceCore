@@ -86,12 +86,13 @@ type PluginMessagesResult struct {
 }
 
 type PluginVisionInput struct {
-	Platform         string `json:"platform"`
-	PlatformShopID   string `json:"platformShopId"`
-	PlatformShopName string `json:"platformShopName"`
-	BuyerName        string `json:"buyerName"`
-	ImageBase64      string `json:"imageBase64"`
-	Baseline         bool   `json:"baseline"`
+	Platform         string   `json:"platform"`
+	PlatformShopID   string   `json:"platformShopId"`
+	PlatformShopName string   `json:"platformShopName"`
+	BuyerName        string   `json:"buyerName"`
+	ImageBase64      string   `json:"imageBase64"`
+	Images           []string `json:"images"`
+	Baseline         bool     `json:"baseline"`
 }
 
 type PluginVisionResult struct {
