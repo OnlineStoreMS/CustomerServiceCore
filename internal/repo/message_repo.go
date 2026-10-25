@@ -79,6 +79,24 @@ func (r *MessageRepo) UpdateContent(platformMessageID, content string) error {
 		Update("content", content).Error
 }
 
+func (r *MessageRepo) UpdateIfLonger(platformMessageID, content string) (bool, error) {
+	if platformMessageID == "" || strings.TrimSpace(content) == "" {
+		return false, nil
+	}
+	var row model.CsMessage
+	if err := r.db.Scopes(scopeTenant(r.tenantID)).
+		Where("platform_message_id = ?", platformMessageID).
+		First(&row).Error; err != nil {
+		return false, nil
+	}
+	have := strings.Join(strings.Fields(strings.TrimSpace(row.Content)), "")
+	seen := strings.Join(strings.Fields(strings.TrimSpace(content)), "")
+	if len([]rune(have)) < 4 || len([]rune(seen)) <= len([]rune(have)) || !strings.HasPrefix(seen, have) {
+		return false, nil
+	}
+	return true, r.UpdateContent(platformMessageID, strings.TrimSpace(content))
+}
+
 func (r *MessageRepo) CreateIgnoreDuplicate(msg *model.CsMessage) (bool, error) {
 	msg.TenantID = r.tenantID
 	tx := r.db.Clauses(clause.OnConflict{

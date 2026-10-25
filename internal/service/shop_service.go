@@ -407,6 +407,18 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 			}
 		} else {
 			skipped++
+			updated, err := svc.messages().UpdateIfLonger(msgID, content)
+			if err != nil {
+				return nil, err
+			}
+			if updated {
+				accepted++
+				skipped--
+				if conv.LastMessagePreview != "" && strings.HasPrefix(normVisionText(content), normVisionText(conv.LastMessagePreview)) {
+					conv.LastMessagePreview = preview
+					_ = svc.conversations().Save(conv)
+				}
+			}
 		}
 		if dir == model.DirectionIn {
 			// 重复上报也再走关键词：已入库的「您好」加了模板后，飞鸽再刷到同一句也能补回。
@@ -937,6 +949,14 @@ func parseSentAt(v any) time.Time {
 		}
 		if t, err := time.ParseInLocation("2006-01-02 15:04", s, time.Local); err == nil {
 			return t
+		}
+		if t, err := time.ParseInLocation("15:04:05", s, time.Local); err == nil {
+			now := time.Now()
+			return time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.Local)
+		}
+		if t, err := time.ParseInLocation("15:04", s, time.Local); err == nil {
+			now := time.Now()
+			return time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.Local)
 		}
 		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 			return millisOrSeconds(n)

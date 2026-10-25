@@ -60,6 +60,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.Use(pluginH.AuthRequired())
 	authed.POST("/heartbeat", pluginH.Heartbeat)
 	authed.POST("/messages", pluginH.Messages)
+	authed.POST("/transcribe", pluginH.Transcribe)
 	authed.POST("/vision", pluginH.Vision)
 	authed.POST("/outbound/claim", pluginH.ClaimOutbound)
 	authed.POST("/outbound/:id/ack", pluginH.AckOutbound)

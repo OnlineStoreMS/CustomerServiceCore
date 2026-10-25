@@ -65,6 +65,25 @@ func (h *Handler) Heartbeat(c *gin.Context) {
 	response.OK(c, item)
 }
 
+func (h *Handler) Transcribe(c *gin.Context) {
+	shop := mustShop(c)
+	if shop == nil {
+		response.Fail(c, http.StatusUnauthorized, service.ErrPluginAuth.Error())
+		return
+	}
+	var in dto.PluginTranscribeInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := h.svc.TranscribeVision(c.Request.Context(), shop, &in)
+	if err != nil {
+		httputil.HandleServiceError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
 func (h *Handler) Vision(c *gin.Context) {
 	shop := mustShop(c)
 	if shop == nil {

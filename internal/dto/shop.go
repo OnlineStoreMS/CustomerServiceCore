@@ -85,14 +85,22 @@ type PluginMessagesResult struct {
 	Skipped  int `json:"skipped"`
 }
 
+type PluginVisionHint struct {
+	Direction string `json:"direction"`
+	Text      string `json:"text"`
+	SentAt    any    `json:"sentAt"`
+}
+
 type PluginVisionInput struct {
-	Platform         string   `json:"platform"`
-	PlatformShopID   string   `json:"platformShopId"`
-	PlatformShopName string   `json:"platformShopName"`
-	BuyerName        string   `json:"buyerName"`
-	ImageBase64      string   `json:"imageBase64"`
-	Images           []string `json:"images"`
-	Baseline         bool     `json:"baseline"`
+	Platform         string             `json:"platform"`
+	PlatformShopID   string             `json:"platformShopId"`
+	PlatformShopName string             `json:"platformShopName"`
+	BuyerName        string             `json:"buyerName"`
+	ImageBase64      string             `json:"imageBase64"`
+	Images           []string           `json:"images"`
+	Baseline         bool               `json:"baseline"`
+	CapturedAt       string             `json:"capturedAt"`
+	DomMessages      []PluginVisionHint `json:"domMessages"`
 }
 
 type PluginVisionResult struct {
@@ -102,6 +110,22 @@ type PluginVisionResult struct {
 	Model    string `json:"model"`
 	Aligned  bool   `json:"aligned"`
 	Inbound  int    `json:"inbound"`
+}
+
+type PluginTranscribeInput struct {
+	ImageBase64 string   `json:"imageBase64"`
+	Images      []string `json:"images"`
+}
+
+type PluginTranscribeLine struct {
+	Direction string `json:"direction"`
+	Text      string `json:"text"`
+	SentAt    string `json:"sentAt,omitempty"`
+}
+
+type PluginTranscribeResult struct {
+	Model    string                 `json:"model"`
+	Messages []PluginTranscribeLine `json:"messages"`
 }
 
 type ConversationItem struct {

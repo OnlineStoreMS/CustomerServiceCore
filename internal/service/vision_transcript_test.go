@@ -3,12 +3,28 @@ package service
 import "testing"
 
 func TestParseVisionMessages(t *testing.T) {
-	raw := "```json\n{\"messages\":[{\"direction\":\"in\",\"text\":\"在吗\"},{\"direction\":\"out\",\"text\":\"在的\"},{\"direction\":\"system\",\"text\":\"客服接入\"}]}\n```"
+	raw := "```json\n{\"messages\":[{\"direction\":\"in\",\"text\":\"在吗\",\"sentAt\":\"14:32:00\"},{\"direction\":\"out\",\"text\":\"在的\"},{\"direction\":\"system\",\"text\":\"客服接入\"}]}\n```"
 	got, err := ParseVisionMessages(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Text != "在吗" || got[1].Direction != "out" {
+	if len(got) != 2 || got[0].Text != "在吗" || got[0].SentAt != "14:32:00" || got[1].Direction != "out" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestAttachHintTimesUsesDomClock(t *testing.T) {
+	visible := []visionLine{
+		{Direction: "in", Text: "在吗"},
+		{Direction: "out", Text: "在的"},
+		{Direction: "in", Text: "有货吗"},
+	}
+	hints := []visionLine{
+		{Direction: "in", Text: "在吗", SentAt: "2026-10-25 14:32:00"},
+		{Direction: "out", Text: "在的", SentAt: "2026-10-25 14:32:20"},
+	}
+	got := attachHintTimes(visible, hints)
+	if got[0].SentAt != "2026-10-25 14:32:00" || got[1].SentAt != "2026-10-25 14:32:20" || got[2].SentAt != "2026-10-25 14:32:20" {
 		t.Fatalf("got %#v", got)
 	}
 }
