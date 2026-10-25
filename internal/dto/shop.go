@@ -57,6 +57,7 @@ type PluginMessagesInput struct {
 	PlatformShopID   string                 `json:"platformShopId"`
 	PlatformShopName string                 `json:"platformShopName"`
 	CurrentListEmpty bool                   `json:"currentListEmpty"`
+	Baseline         bool                   `json:"baseline"`
 	CurrentBuyers    []string               `json:"currentBuyers"`
 	ProductContext   []PluginProductContext `json:"productContext"`
 	Messages         []PluginMessageItem    `json:"messages"`

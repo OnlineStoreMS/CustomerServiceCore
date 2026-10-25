@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"strings"
 	"time"
 
 	"customerservicecore/internal/model"
@@ -65,6 +66,20 @@ func (r *OutboundRepo) HasRecentSource(conversationID uint64, since time.Time, s
 		Scopes(scopeTenant(r.tenantID)).
 		Where("conversation_id = ? AND source IN ? AND created_at >= ? AND status <> ?",
 			conversationID, sources, since, model.OutboundFailed).
+		Count(&n).Error
+	return n > 0, err
+}
+
+func (r *OutboundRepo) HasRecentContent(conversationID uint64, content string, since time.Time) (bool, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false, nil
+	}
+	var n int64
+	err := r.db.Model(&model.CsOutboundMessage{}).
+		Scopes(scopeTenant(r.tenantID)).
+		Where("conversation_id = ? AND content = ? AND created_at >= ? AND status <> ?",
+			conversationID, content, since, model.OutboundFailed).
 		Count(&n).Error
 	return n > 0, err
 }

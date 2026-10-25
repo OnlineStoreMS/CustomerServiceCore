@@ -83,6 +83,26 @@ func matchAutoReply(content, matchMode string, keywords []string) bool {
 	return false
 }
 
+func isGreetingReplyEcho(content string) bool {
+	got := normalizeReplyText(content)
+	return strings.Contains(got, "收到啦") && strings.Contains(got, "随时找我")
+}
+
+func isOwnReplyEcho(inbound, reply string) bool {
+	in := normalizeReplyText(inbound)
+	out := normalizeReplyText(reply)
+	if in == "" || out == "" {
+		return false
+	}
+	if in == out {
+		return true
+	}
+	if isGreetingReplyEcho(inbound) {
+		return true
+	}
+	return utf8.RuneCountInString(in) >= 6 && strings.HasPrefix(out, in)
+}
+
 func matchKeywordSequence(got string, keywords []string) bool {
 	if got == "" || len(keywords) == 0 {
 		return false
@@ -355,6 +375,9 @@ func (s *ShopService) maybeAutoReply(shop *model.CsShop, conv *model.CsConversat
 	if strings.HasPrefix(strings.TrimSpace(inbound.Content), "[图片]") {
 		return
 	}
+	if isGreetingReplyEcho(inbound.Content) {
+		return
+	}
 	exists, err := s.outbound().ExistsTrigger(inbound.PlatformMessageID)
 	if err != nil || exists {
 		return
@@ -378,6 +401,9 @@ func (s *ShopService) tryKeywordReply(shop *model.CsShop, conv *model.CsConversa
 		if !matchAutoReply(inbound.Content, rule.MatchMode, splitKeywords(rule.Keywords)) {
 			continue
 		}
+		if isOwnReplyEcho(inbound.Content, rule.ReplyText) {
+			continue
+		}
 		matched = true
 		cool := time.Duration(rule.CooldownSec) * time.Second
 		if cool <= 0 {
@@ -386,6 +412,14 @@ func (s *ShopService) tryKeywordReply(shop *model.CsShop, conv *model.CsConversa
 		// 只看关键词自己的冷却，不被 DeepSeek 刚回过挡住。
 		recent, err := s.outbound().HasRecentSource(conv.ID, time.Now().Add(-cool), model.ReplySourceAuto)
 		if err != nil || recent {
+			continue
+		}
+		sameFor := 10 * time.Minute
+		if cool > sameFor {
+			sameFor = cool
+		}
+		sameText, err := s.outbound().HasRecentContent(conv.ID, rule.ReplyText, time.Now().Add(-sameFor))
+		if err != nil || sameText {
 			continue
 		}
 		_, _, _ = s.enqueueOutbound(shop, conv, rule.ReplyText, model.ReplySourceAuto, rule.ID, inbound.PlatformMessageID)

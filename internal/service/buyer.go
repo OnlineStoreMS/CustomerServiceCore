@@ -123,8 +123,12 @@ func conversationCanonicalScore(c *model.CsConversation) int {
 }
 
 var junkPriceRe = regexp.MustCompile(`^(¥\s*[\d,.]+|[\d,.]+\s*元)(\s*\(\d+\s*次\))?$|^[\d,.]+\s*\(\d+\s*次\)$`)
+var recommendCardRe = regexp.MustCompile(`[¥￥]?\s*[\d,.]+\s*(?:元)?\s*已售\s*\d+`)
+var soldCountRe = regexp.MustCompile(`^已售\s*\d+$`)
 
 func isJunkMessageContent(s string) bool {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "[商品]")
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return true
@@ -148,6 +152,15 @@ func isJunkMessageContent(s string) bool {
 		return true
 	}
 	if s == "券后价" || s == "保障" || s == "优惠" || s == "物流" || s == "已售" || strings.HasPrefix(s, "已售") {
+		return true
+	}
+	if strings.Contains(s, "立即购买") || strings.Contains(s, "加入购物车") || strings.Contains(s, "商品卡片") {
+		return true
+	}
+	if soldCountRe.MatchString(s) || recommendCardRe.MatchString(s) {
+		return true
+	}
+	if strings.Contains(s, "已售") && (strings.Contains(s, "¥") || strings.Contains(s, "￥")) {
 		return true
 	}
 	if strings.Contains(s, "48小时内发货") || strings.Contains(s, "这款商品正在活动") {

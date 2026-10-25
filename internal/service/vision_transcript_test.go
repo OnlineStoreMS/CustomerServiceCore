@@ -2,6 +2,17 @@ package service
 
 import "testing"
 
+func TestParseVisionMessagesSkipsRecommendCard(t *testing.T) {
+	raw := `{"messages":[{"direction":"out","text":"¥180.00已售221"},{"direction":"in","text":"在吗"}]}`
+	got, err := ParseVisionMessages(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Text != "在吗" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
 func TestParseVisionMessages(t *testing.T) {
 	raw := "```json\n{\"messages\":[{\"direction\":\"in\",\"text\":\"在吗\",\"sentAt\":\"14:32:00\"},{\"direction\":\"out\",\"text\":\"在的\"},{\"direction\":\"system\",\"text\":\"客服接入\"}]}\n```"
 	got, err := ParseVisionMessages(raw)

@@ -53,6 +53,15 @@ func TestMatchAutoReply_exactAndContains(t *testing.T) {
 	if matchAutoReply("这个飞轮好用吗", model.MatchExact, hi) {
 		t.Fatal("question containing 好 must not match sequence")
 	}
+	if matchAutoReply("好的亲，收到啦～有其他问题随时找我", model.MatchExact, hi) {
+		t.Fatal("own greeting reply must not match")
+	}
+	if !isGreetingReplyEcho("好的亲，收到啦～有其他问题随时找我") {
+		t.Fatal("expected greeting echo")
+	}
+	if isOwnReplyEcho("好的", "好的亲，收到啦～有其他问题随时找我") {
+		t.Fatal("buyer 好的 is not an echo")
+	}
 	greet := splitKeywords("您好,你好,在吗,在的")
 	if !matchAutoReply("您好", model.MatchExact, greet) {
 		t.Fatal("exact 您好")
@@ -70,6 +79,11 @@ func TestIsJunkMessageContent_feigeChrome(t *testing.T) {
 	}
 	if isJunkMessageContent("好的") || isJunkMessageContent("谢谢") {
 		t.Fatal("buyer greetings must not be junk")
+	}
+	for _, s := range []string{"¥180.00已售221", "￥180.00 已售221", "已售221", "[商品]¥180.00已售221", "券后价", "立即购买"} {
+		if !isJunkMessageContent(s) {
+			t.Fatalf("expected recommend-card junk: %q", s)
+		}
 	}
 }
 

@@ -420,8 +420,8 @@ func (s *ShopService) IngestMessages(shop *model.CsShop, in *dto.PluginMessagesI
 				}
 			}
 		}
-		if dir == model.DirectionIn {
-			// 重复上报也再走关键词：已入库的「您好」加了模板后，飞鸽再刷到同一句也能补回。
+		if dir == model.DirectionIn && !in.Baseline {
+			// 首屏历史不当新进线。重复上报也再走关键词，方便后加的模板补回。
 			// DeepSeek 只在新消息上跑，避免旧问句每 2 秒重打一轮。
 			svc.maybeAutoReply(shop, conv, msg, created)
 		}
